@@ -18,13 +18,14 @@ def _convertir_a_float(valor: Optional[str]) -> Optional[float]:
         logger.warning(f"No se pudo convertir '{valor}' a float.")
         return None
 
-def guardar_factura_en_db(filename: str, entities: Dict[str, str]) -> bool:
+def guardar_factura_en_db(db: sqlite3.Connection, filename: str, entities: Dict[str, str]) -> bool:
     """
     Guarda los datos estructurados de una factura en la base de datos SQLite
     utilizando las entidades extraídas por el Invoice Parser.
 
     Args:
-        filename (str): El nombre del archivo de la factura.
+        db (sqlite3.Connection): La conexión a la base de datos.
+        filename (str): El nombre del archivo de la factura.        
         entities (Dict[str, str]): Un diccionario con las entidades extraídas.
         
     Returns:
@@ -41,8 +42,7 @@ def guardar_factura_en_db(filename: str, entities: Dict[str, str]) -> bool:
     # Mostrar todas las claves disponibles para depuración
     logger.info(f"Claves disponibles en entities: {list(entities.keys())}")
     
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
+    cursor = db.cursor()
 
     try:
         # El mapeo ya se hizo en app.py, aquí solo obtenemos los valores.
@@ -72,8 +72,6 @@ def guardar_factura_en_db(filename: str, entities: Dict[str, str]) -> bool:
             VALUES (?, ?, ?, ?, ?, ?)
         """, (filename, razon_social, cuit_proveedor, subtotal, iva, total))
 
-        conn.commit()
-
         # Verificar que se insertó correctamente
         cursor.execute("SELECT id, razon_social, total FROM facturas WHERE filename = ? ORDER BY id DESC LIMIT 1", (filename,))
         factura_guardada = cursor.fetchone()
@@ -90,14 +88,10 @@ def guardar_factura_en_db(filename: str, entities: Dict[str, str]) -> bool:
 
     except sqlite3.Error as e:
         logger.error(f"❌ ERROR SQL al guardar datos de '{filename}': {e}")
-        conn.rollback()
         return False
     except Exception as e:
         logger.error(f"❌ ERROR GENERAL al guardar datos de '{filename}': {e}")
-        conn.rollback()
         return False
-    finally:
-        conn.close()
 
 def verificar_entidades_disponibles(entities: Dict[str, str]) -> None:
     """
@@ -117,7 +111,7 @@ def obtener_estadisticas_facturas() -> Dict:
     """
     Función auxiliar para obtener estadísticas de las facturas guardadas.
     """
-    conn = sqlite3.connect("database.db")
+    conn = sqlite3.connect("database.db", check_same_thread=False)
     cursor = conn.cursor()
     
     try:

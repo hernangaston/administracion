@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from fastapi import FastAPI, UploadFile, File, Request
+from fastapi import FastAPI, UploadFile, File, Request, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from google.cloud import documentai_v1 as documentai
 from dotenv import load_dotenv
 import os
+import tempfile
 import sqlite3
 from typing import List, Dict
 import traceback
@@ -30,8 +31,11 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Configura Google Document AI
 PROJECT_ID = os.getenv("DOCAI_PROJECT_ID")
-LOCATION = os.getenv("DOCAI_LOCATION", "us") # Default a 'us' si no se especifica
+LOCATION_RAW = os.getenv("DOCAI_LOCATION", "us") # Leer valor crudo
 PROCESSOR_ID = os.getenv("DOCAI_PROCESSOR_ID")
+
+# Limpiar la variable de ubicación para evitar errores con comentarios o comillas en el .env
+LOCATION = LOCATION_RAW.split('#')[0].strip().strip('\'"')
 
 # Autenticación
 google_creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
@@ -75,13 +79,6 @@ def mapear_entidades_flexibles(entities_raw):
                 entities_mapeadas[campo_esperado] = valor
                 break
     return procesar_line_items_inteligente(entities_raw, entities_mapeadas)
-
-def limpiar_datos_factura(entities):
-    campos_cuit = ['supplier_tax_id', 'receiver_tax_id', 'cuit_proveedor', 'cliente_cuit']
-    for campo in campos_cuit:
-        if campo in entities and entities[campo]:
-            entities[campo] = limpiar_cuit(entities[campo])
-    return entities
 
 def procesar_line_items_inteligente(entities_raw, entities_mapeadas):
     line_items_data = {k: v for k, v in entities_raw.items() if 'linea_item' in k.lower() or 'line_item' in k.lower()}
@@ -140,6 +137,26 @@ def init_db_tables():
     except sqlite3.Error as e:
         logger.error(f"Error inicializando base de datos: {e}")
 
+# Helper para formatear moneda
+def _formatear_moneda(valor) -> str:
+    """Formatea un número a string con formato de moneda argentina."""
+    if valor is None:
+        return ""
+    try:
+        # Formato: 1.234,56
+        return f"{float(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except (ValueError, TypeError):
+        return str(valor) # Dejar como está si no es un número
+
+# Dependencia de FastAPI para gestionar la conexión a la BD
+def get_db():
+    db = sqlite3.connect("database.db", check_same_thread=False)
+    db.row_factory = sqlite3.Row
+    try:
+        yield db
+    finally:
+        db.close()
+
 @app.on_event("startup")
 def startup():
     if not all([PROJECT_ID, LOCATION, PROCESSOR_ID]):
@@ -178,29 +195,19 @@ def process_pdf(file_path: str) -> Dict:
 
 # Modificar la ruta home para formatear CUITs en el listado
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
+async def home(request: Request, db: sqlite3.Connection = Depends(get_db)):
     """Página principal con listado de facturas"""
     try:
-        conn = sqlite3.connect("database.db")
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+        cursor = db.cursor()
         cursor.execute("SELECT id, filename, razon_social, cuit_proveedor, subtotal, iva, total, created_at FROM facturas ORDER BY created_at DESC")
         facturas_raw = cursor.fetchall()
-        conn.close()
 
-        # NUEVO: Formatear CUITs y números para visualización
         facturas = []
         for factura in facturas_raw:
             factura_dict = dict(factura)
-            if factura_dict.get('cuit_proveedor'):
-                factura_dict['cuit_proveedor_formateado'] = formatear_cuit(factura_dict['cuit_proveedor'])
-            # Formatear números a dos decimales con coma
+            factura_dict['cuit_proveedor_formateado'] = formatear_cuit(factura_dict.get('cuit_proveedor'))
             for key in ['subtotal', 'iva', 'total']:
-                if factura_dict.get(key) is not None:
-                    try:
-                        factura_dict[f'{key}_formateado'] = f"{float(factura_dict[key]):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    except (ValueError, TypeError):
-                        factura_dict[f'{key}_formateado'] = factura_dict[key] # Dejar como está si no es un número
+                factura_dict[f'{key}_formateado'] = _formatear_moneda(factura_dict.get(key))
             facturas.append(factura_dict)
 
         return templates.TemplateResponse("index.html", {"request": request, "facturas": facturas})
@@ -211,31 +218,22 @@ async def home(request: Request):
     
 # Agregar nueva ruta para formatear CUIT para visualización
 @app.get("/factura/{factura_id}", response_class=HTMLResponse)
-async def ver_factura(request: Request, factura_id: int):
+async def ver_factura(request: Request, factura_id: int, db: sqlite3.Connection = Depends(get_db)):
     """Ver detalle de una factura específica"""
     try:
-        conn = sqlite3.connect("database.db")
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+        cursor = db.cursor()
         cursor.execute("SELECT * FROM facturas WHERE id = ?", (factura_id,))
         factura = cursor.fetchone()
-        conn.close()
 
         if not factura:
             logger.warning(f"Factura con ID {factura_id} no encontrada")
             return templates.TemplateResponse("detalle.html", {"request": request, "factura": None})
 
-        # NUEVO: Convertir Row a dict y formatear CUITs para visualización
         factura_dict = dict(factura)
-        if factura_dict.get('cuit_proveedor'):
-            factura_dict['cuit_proveedor_formateado'] = formatear_cuit(factura_dict['cuit_proveedor'])
-        # Formatear números a dos decimales con coma
+        factura_dict['cuit_proveedor_formateado'] = formatear_cuit(factura_dict.get('cuit_proveedor'))
         for key in ['subtotal', 'iva', 'total']:
-            if factura_dict.get(key) is not None:
-                try:
-                    factura_dict[f'{key}_formateado'] = f"{float(factura_dict[key]):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                except (ValueError, TypeError):
-                    factura_dict[f'{key}_formateado'] = factura_dict[key]
+            factura_dict[f'{key}_formateado'] = _formatear_moneda(factura_dict.get(key))
+
         return templates.TemplateResponse("detalle.html", {"request": request, "factura": factura_dict})
 
     except Exception as e:
@@ -243,25 +241,32 @@ async def ver_factura(request: Request, factura_id: int):
         return templates.TemplateResponse("detalle.html", {"request": request, "factura": None, "error": str(e)})
 
 @app.post("/extract-text")
-async def extract_text_from_pdfs(files: List[UploadFile] = File(...)):
+async def extract_text_from_pdfs(files: List[UploadFile] = File(...), db: sqlite3.Connection = Depends(get_db)):
     resultados = []
     for file in files:
         try:
-            temp_path = f"/tmp/{file.filename}"
-            with open(temp_path, "wb") as f:
-                f.write(await file.read())
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
+                temp_file.write(await file.read())
+                temp_path = temp_file.name
+
             extracted_data = process_pdf(temp_path)
-            if extracted_data.get("entities"):
-                entities_limpias = limpiar_datos_factura(extracted_data["entities"])
-                guardar_factura_en_db(file.filename, entities_limpias)
+            entities = extracted_data.get("entities", {})
+            if entities:
+                guardar_factura_en_db(db, file.filename, entities)
+
             resultados.append({
                 "filename": file.filename,
                 "message": f"Factura procesada (página 1 de {extracted_data.get('pages_processed', 'N/A')}).",
-                "summary_text": extracted_data.get("text", "")[:200] + "...",
-                "extracted_entities": entities_limpias if 'entities_limpias' in locals() else extracted_data.get("entities", {}),
+                "summary_text": (extracted_data.get("text", "")[:200] + "...") if extracted_data.get("text") else "No se pudo extraer texto.",
+                "extracted_entities": entities,
                 "pages_processed": extracted_data.get("pages_processed", 0)
             })
         except Exception as e:
             logger.error(f"Error con {file.filename}: {e}")
             resultados.append({"filename": file.filename, "error": str(e)})
+        finally:
+            if 'temp_path' in locals() and os.path.exists(temp_path):
+                os.remove(temp_path) # Limpiar el archivo temporal
+
+    db.commit() # Hacer commit de todas las facturas procesadas en la petición
     return JSONResponse(content={"resultados": resultados})
