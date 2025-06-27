@@ -1,0 +1,43 @@
+# Archivos de entorno virtual
+# Reemplaza 'admin/' con el nombre de tu directorio de venv si es diferente
+admin/
+venv/
+.venv/
+env/
+ENV/
+uploads/
+# Archivos de configuración local y secretos
+# ¡MUY IMPORTANTE para no subir credenciales o claves API!
+.env
+*.env.local
+
+# Bases de datos locales
+database.db
+*.sqlite
+*.sqlite3
+
+# Archivos compilados de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Archivos de distribución y empaquetado
+build/
+dist/
+*.egg-info/
+
+# Archivos de caché y logs de testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Archivos de configuración de IDEs y editores
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Archivos generados por el sistema operativo
+.DS_Store
+Thumbs.db

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Facturas Procesadas</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Lista de Facturas</h1>
+
+        <form action="/extract-text" method="post" enctype="multipart/form-data">
+            <input type="file" name="files" multiple>
+            <button type="submit">Subir Facturas</button>
+        </form>
+
+        <h2>Facturas procesadas</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Archivo</th>
+                    <th>Razón Social</th>
+                    <th>CUIT</th>
+                    <th>Subtotal</th>
+                    <th>IVA</th>
+                    <th>Total</th>
+                    <th>Fecha</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% if facturas %}
+                {% for factura in facturas %}
+                <tr>
+                    <td>{{ factura.id }}</td>
+                    <td>{{ factura.filename }}</td>
+                    <td>{{ factura.razon_social }}</td>
+                    <td>{{ factura.cuit_proveedor_formateado or factura.cuit_proveedor }}</td>
+                    <td>{{ factura.subtotal }}</td>
+                    <td>{{ factura.iva }}</td>
+                    <td>{{ factura.total }}</td>
+                    <td>{{ factura.created_at[:10] }}</td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="8" style="text-align: center;">No hay facturas cargadas aún.</td>
+                </tr>
+            {% endif %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
+
