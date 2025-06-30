@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from fastapi import FastAPI, UploadFile, File, Request, Depends
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request, Depends, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -17,6 +17,9 @@ import logging
 from parser_factura import guardar_factura_en_db, verificar_entidades_disponibles, obtener_estadisticas_facturas
 
 from cuit_utils import limpiar_cuit, formatear_cuit, validar_cuit
+
+from auth_routes import auth_router, require_auth_cookie, get_current_user_from_cookie
+from auth import init_auth_tables, can_access_factura
 
 # Configurar logging con nivel WARNING para reducir ruido
 logging.basicConfig(level=logging.WARNING)
@@ -160,11 +163,18 @@ def get_db():
 @app.on_event("startup")
 def startup():
     if not all([PROJECT_ID, LOCATION, PROCESSOR_ID]):
-        logger.critical("Faltan variables de entorno críticas para Document AI (DOCAI_PROJECT_ID, DOCAI_LOCATION, DOCAI_PROCESSOR_ID).")
-        # En un entorno de producción, podrías querer que la aplicación no inicie.
-        # import sys
-        # sys.exit(1)
+        logger.critical("Faltan variables de entorno críticas para Document AI.")
+    
+    # Inicializar tablas existentes
     init_db_tables()
+    
+    # Inicializar tablas de autenticación
+    db = sqlite3.connect("database.db")
+    init_auth_tables(db)
+    db.close()
+
+# === INCLUIR EL ROUTER DE AUTENTICACIÓN ===
+app.include_router(auth_router)
 
 def process_pdf(file_path: str) -> Dict:
     try:
@@ -191,17 +201,39 @@ def process_pdf(file_path: str) -> Dict:
         logger.error(f"Error procesando PDF: {e}")
         return {"text": "", "entities": {}, "entities_raw": {}, "pages_processed": 0}
 
-
-
-# Modificar la ruta home para formatear CUITs en el listado
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request, db: sqlite3.Connection = Depends(get_db)):
-    """Página principal con listado de facturas"""
+async def home(
+    request: Request, 
+    db: sqlite3.Connection = Depends(get_db),
+    current_user_data = Depends(require_auth_cookie)
+):
+    """Página principal con listado de facturas (requiere autenticación)"""
     try:
+        current_user, token_data = current_user_data
         cursor = db.cursor()
-        cursor.execute("SELECT id, filename, razon_social, cuit_proveedor, subtotal, iva, total, created_at FROM facturas ORDER BY created_at DESC")
-        facturas_raw = cursor.fetchall()
+        
+        # Filtrar facturas según el rol del usuario
+        if current_user.role in ["admin", "contador", "vendedor", "auditor"]:
+            # Pueden ver todas las facturas
+            cursor.execute("""
+                SELECT id, filename, razon_social, cuit_proveedor, subtotal, iva, total, created_at 
+                FROM facturas ORDER BY created_at DESC
+            """)
+        elif current_user.role == "cliente":
+            # Solo pueden ver facturas de su CUIT
+            if current_user.cuit_asociado:
+                cursor.execute("""
+                    SELECT id, filename, razon_social, cuit_proveedor, subtotal, iva, total, created_at 
+                    FROM facturas 
+                    WHERE cuit_proveedor = ? OR razon_social LIKE ?
+                    ORDER BY created_at DESC
+                """, (current_user.cuit_asociado, f"%{current_user.cuit_asociado}%"))
+            else:
+                cursor.execute("SELECT * FROM facturas WHERE 1=0")  # No mostrar nada
+        else:
+            cursor.execute("SELECT * FROM facturas WHERE 1=0")  # No mostrar nada
 
+        facturas_raw = cursor.fetchall()
         facturas = []
         for factura in facturas_raw:
             factura_dict = dict(factura)
@@ -210,38 +242,90 @@ async def home(request: Request, db: sqlite3.Connection = Depends(get_db)):
                 factura_dict[f'{key}_formateado'] = _formatear_moneda(factura_dict.get(key))
             facturas.append(factura_dict)
 
-        return templates.TemplateResponse("index.html", {"request": request, "facturas": facturas})
+        return templates.TemplateResponse("index.html", {
+            "request": request, 
+            "facturas": facturas,
+            "current_user": current_user,
+            "permissions": token_data.permissions
+        })
 
     except Exception as e:
         logger.error(f"Error en ruta home: {e}")
-        return templates.TemplateResponse("index.html", {"request": request, "facturas": [], "error": str(e)})
-    
-# Agregar nueva ruta para formatear CUIT para visualización
+        return templates.TemplateResponse("index.html", {
+            "request": request, 
+            "facturas": [], 
+            "error": str(e),
+            "current_user": current_user if 'current_user' in locals() else None
+        })
+
 @app.get("/factura/{factura_id}", response_class=HTMLResponse)
-async def ver_factura(request: Request, factura_id: int, db: sqlite3.Connection = Depends(get_db)):
-    """Ver detalle de una factura específica"""
+async def ver_factura(
+    request: Request, 
+    factura_id: int, 
+    db: sqlite3.Connection = Depends(get_db),
+    current_user_data = Depends(require_auth_cookie)
+):
+    """Ver detalle de una factura específica (con control de acceso)"""
     try:
+        current_user, token_data = current_user_data
         cursor = db.cursor()
         cursor.execute("SELECT * FROM facturas WHERE id = ?", (factura_id,))
         factura = cursor.fetchone()
 
         if not factura:
             logger.warning(f"Factura con ID {factura_id} no encontrada")
-            return templates.TemplateResponse("detalle.html", {"request": request, "factura": None})
+            return templates.TemplateResponse("detalle.html", {
+                "request": request, 
+                "factura": None,
+                "current_user": current_user
+            })
 
         factura_dict = dict(factura)
+        
+        # Verificar permisos de acceso
+        if not can_access_factura(current_user, token_data, factura_dict.get('cuit_proveedor')):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes permisos para ver esta factura"
+            )
+
         factura_dict['cuit_proveedor_formateado'] = formatear_cuit(factura_dict.get('cuit_proveedor'))
         for key in ['subtotal', 'iva', 'total']:
             factura_dict[f'{key}_formateado'] = _formatear_moneda(factura_dict.get(key))
 
-        return templates.TemplateResponse("detalle.html", {"request": request, "factura": factura_dict})
+        return templates.TemplateResponse("detalle.html", {
+            "request": request, 
+            "factura": factura_dict,
+            "current_user": current_user
+        })
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error obteniendo factura {factura_id}: {e}")
-        return templates.TemplateResponse("detalle.html", {"request": request, "factura": None, "error": str(e)})
-
+        return templates.TemplateResponse("detalle.html", {
+            "request": request, 
+            "factura": None, 
+            "error": str(e),
+            "current_user": current_user if 'current_user' in locals() else None
+        })
+    
 @app.post("/extract-text")
-async def extract_text_from_pdfs(files: List[UploadFile] = File(...), db: sqlite3.Connection = Depends(get_db)):
+async def extract_text_from_pdfs(
+    files: List[UploadFile] = File(...), 
+    db: sqlite3.Connection = Depends(get_db),
+    current_user_data = Depends(require_auth_cookie)
+):
+    """Procesar PDFs (requiere permisos de creación)"""
+    current_user, token_data = current_user_data
+    
+    # Verificar permisos
+    if "facturas:create" not in token_data.permissions:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para crear facturas"
+        )
+    
     resultados = []
     for file in files:
         try:
@@ -259,14 +343,90 @@ async def extract_text_from_pdfs(files: List[UploadFile] = File(...), db: sqlite
                 "message": f"Factura procesada (página 1 de {extracted_data.get('pages_processed', 'N/A')}).",
                 "summary_text": (extracted_data.get("text", "")[:200] + "...") if extracted_data.get("text") else "No se pudo extraer texto.",
                 "extracted_entities": entities,
-                "pages_processed": extracted_data.get("pages_processed", 0)
+                "pages_processed": extracted_data.get("pages_processed", 0),
+                "processed_by": current_user.username
             })
         except Exception as e:
             logger.error(f"Error con {file.filename}: {e}")
             resultados.append({"filename": file.filename, "error": str(e)})
         finally:
             if 'temp_path' in locals() and os.path.exists(temp_path):
-                os.remove(temp_path) # Limpiar el archivo temporal
+                os.remove(temp_path)
 
-    db.commit() # Hacer commit de todas las facturas procesadas en la petición
+    db.commit()
     return JSONResponse(content={"resultados": resultados})
+
+# === NUEVA RUTA PARA DASHBOARD/ESTADÍSTICAS ===
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard(
+    request: Request,
+    db: sqlite3.Connection = Depends(get_db),
+    current_user_data = Depends(require_auth_cookie)
+):
+    """Dashboard con estadísticas del sistema"""
+    current_user, token_data = current_user_data
+    
+    try:
+        cursor = db.cursor()
+        
+        # Estadísticas básicas
+        if current_user.role in ["admin", "contador", "auditor"]:
+            cursor.execute("SELECT COUNT(*) FROM facturas")
+            total_facturas = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT SUM(total) FROM facturas WHERE total IS NOT NULL")
+            total_importe = cursor.fetchone()[0] or 0
+            
+            cursor.execute("SELECT COUNT(DISTINCT cuit_proveedor) FROM facturas WHERE cuit_proveedor IS NOT NULL")
+            total_proveedores = cursor.fetchone()[0]
+            
+        elif current_user.role == "cliente":
+            cursor.execute("SELECT COUNT(*) FROM facturas WHERE cuit_proveedor = ?", (current_user.cuit_asociado,))
+            total_facturas = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT SUM(total) FROM facturas WHERE cuit_proveedor = ? AND total IS NOT NULL", (current_user.cuit_asociado,))
+            total_importe = cursor.fetchone()[0] or 0
+            
+            total_proveedores = 1  # Solo su propio CUIT
+        
+        else:
+            total_facturas = total_importe = total_proveedores = 0
+
+        estadisticas = {
+            "total_facturas": total_facturas,
+            "total_importe": total_importe,
+            "total_proveedores": total_proveedores,
+            "importe_formateado": _formatear_moneda(total_importe)
+        }
+
+        return templates.TemplateResponse("dashboard.html", {
+            "request": request,
+            "current_user": current_user,
+            "estadisticas": estadisticas,
+            "permissions": token_data.permissions
+        })
+
+    except Exception as e:
+        logger.error(f"Error en dashboard: {e}")
+        return templates.TemplateResponse("dashboard.html", {
+            "request": request,
+            "current_user": current_user,
+            "error": str(e)
+        })
+
+# === RUTA DE API PARA OBTENER ESTADÍSTICAS ===
+@app.get("/api/estadisticas")
+async def api_estadisticas(
+    current_user_data = Depends(get_current_user_from_cookie),
+    db: sqlite3.Connection = Depends(get_db)
+):
+    """API para obtener estadísticas (requiere autenticación)"""
+    current_user, token_data = current_user_data
+    
+    if "reportes:read" not in token_data.permissions:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para ver reportes"
+        )
+    
+    return obtener_estadisticas_facturas(db)

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Sistema de Facturas</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .dashboard-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: none;
+            border-radius: 15px;
+        }
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .stat-icon {
+            font-size: 2.5rem;
+            opacity: 0.8;
+        }
+        .navbar-brand {
+            font-weight: 600;
+        }
+        .user-info {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-file-invoice me-2"></i>Sistema de Facturas
+            </a>
+            
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-user me-1"></i>{{ current_user.username }}
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="/dashboard">
+                            <i class="fas fa-chart-bar me-2"></i>Dashboard
+                        </a></li>
+                        <li><a class="dropdown-item" href="/">
+                            <i class="fas fa-list me-2"></i>Lista de Facturas
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="/auth/logout">
+                            <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
+                        </a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Información del usuario -->
+        <div class="user-info">
+            <div class="row align-items-center">
+                <div class="col">
+                    <h4 class="mb-1">
+                        <i class="fas fa-user-circle me-2"></i>
+                        Bienvenido, {{ current_user.username }}
+                    </h4>
+                    <p class="mb-0">
+                        <span class="badge bg-light text-dark">{{ current_user.role.title() }}</span>
+                        {% if current_user.cuit_asociado %}
+                        <span class="ms-2">CUIT: {{ current_user.cuit_asociado }}</span>
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="col-auto">
+                    <i class="fas fa-shield-alt fa-2x opacity-50"></i>
+                </div>
+            </div>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-danger" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>{{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Estadísticas principales -->
+        <div class="row mb-4">
+            <div class="col-md-4 mb-3">
+                <div class="card dashboard-card bg-primary text-white">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <h5 class="card-title">Total Facturas</h5>
+                                <h2 class="mb-0">{{ estadisticas.total_facturas }}</h2>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-file-invoice stat-icon"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4 mb-3">
+                <div class="card dashboard-card bg-success text-white">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <h5 class="card-title">Importe Total</h5>
+                                <h2 class="mb-0">${{ estadisticas.importe_formateado }}</h2>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-dollar-sign stat-icon"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4 mb-3">
+                <div class="card dashboard-card bg-info text-white">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <h5 class="card-title">Proveedores</h5>
+                                <h2 class="mb-0">{{ estadisticas.total_proveedores }}</h2>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-building stat-icon"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Acciones rápidas -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-bolt me-2"></i>Acciones Rápidas
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            {% if "facturas:read" in permissions %}
+                            <div class="col-md-3 mb-2">
+                                <a href="/" class="btn btn-outline-primary w-100">
+                                    <i class="fas fa-list me-2"></i>Ver Facturas
+                                </a>
+                            </div>
+                            {% endif %}
+                            
+                            {% if "facturas:create" in permissions %}
+                            <div class="col-md-3 mb-2">
+                                <button class="btn btn-outline-success w-100" onclick="document.getElementById('file-input').click()">
+                                    <i class="fas fa-upload me-2"></i>Subir Factura
+                                </button>
+                            </div>
+                            {% endif %}
+                            
+                            {% if "reportes:read" in permissions %}
+                            <div class="col-md-3 mb-2">
+                                <a href="/api/estadisticas" class="btn btn-outline-info w-100" target="_blank">
+                                    <i class="fas fa-chart-bar me-2"></i>Ver Reportes
+                                </a>
+                            </div>
+                            {% endif %}
+                            
+                            {% if "usuarios:read" in permissions %}
+                            <div class="col-md-3 mb-2">
+                                <a href="/auth/api/users" class="btn btn-outline-warning w-100" target="_blank">
+                                    <i class="fas fa-users me-2"></i>Gestionar Usuarios
+                                </a>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Permisos del usuario -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-key me-2"></i>Tu Nivel de Acceso
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            {% for permission in permissions %}
+                            <div class="col-md-4 mb-2">
+                                <span class="badge bg-light text-dark">
+                                    <i class="fas fa-check-circle text-success me-1"></i>
+                                    {{ permission.replace(':', ' → ').replace('_', ' ').title() }}
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% if not permissions %}
+                        <p class="text-muted mb-0">Sin permisos específicos asignados.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Input oculto para subir archivos -->
+    {% if "facturas:create" in permissions %}
+    <input type="file" id="file-input" multiple accept=".pdf" style="display: none;">
+    {% endif %}
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    
+    {% if "facturas:create" in permissions %}
+    <script>
+        document.getElementById('file-input').addEventListener('change', function(e) {
+            const files = e.target.files;
+            if (files.length > 0) {
+                const formData = new FormData();
+                for (let file of files) {
+                    formData.append('files', file);
+                }
+                
+                // Mostrar loading
+                const btn = document.querySelector('button[onclick*="file-input"]');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Procesando...';
+                btn.disabled = true;
+                
+                fetch('/extract-text', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert(`Procesadas ${data.resultados.length} facturas exitosamente`);
+                    location.reload();
+                })
+                .catch(error => {
+                    alert('Error al procesar facturas: ' + error);
+                })
+                .finally(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                });
+            }
+        });
+    </script>
+    {% endif %}
+</body>
+</html>
