@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agente Inteligente de Facturas</title>
+    <link rel="stylesheet" href="/static/styles.css">   
+    <script src="/static/js/agente-facturas.js"></script>
+</head>
+<body>
+    <div class="agente-container">
+        <h1>🤖 Agente Inteligente de Facturas</h1>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="mostrarTab('consultas')">Consultas</button>
+            <button class="tab" onclick="mostrarTab('duplicados')">Duplicados</button>
+            <button class="tab" onclick="mostrarTab('estadisticas')">Estadísticas</button>
+        </div>
+        
+        <!-- Tab de Consultas -->
+        <div id="consultas" class="tab-content active">
+            <div class="chat-container" id="chat-container">
+                <div class="mensaje agente">
+                    <strong>Agente:</strong> ¡Hola! Soy tu asistente inteligente para consultas sobre facturas. 
+                    Puedes preguntarme cosas como "busca facturas de enero" o "muéstrame facturas mayores a $100,000".
+                </div>
+            </div>
+            
+            <form class="consulta-form" id="consulta-form">
+                <input type="text" class="consulta-input" id="consulta-input" 
+                       placeholder="Escribe tu consulta aquí... ej: 'facturas de Mercado Libre del último mes'"
+                       required>
+                <button type="submit" class="consulta-btn" id="consulta-btn">Consultar</button>
+            </form>
+            
+            <div class="ejemplos-consultas">
+                <p><strong>Ejemplos de consultas:</strong></p>
+                <button class="ejemplo-btn" onclick="usarEjemplo('facturas de enero')">Facturas de enero</button>
+                <button class="ejemplo-btn" onclick="usarEjemplo('facturas mayores a 100000')">Facturas > $100,000</button>
+                <button class="ejemplo-btn" onclick="usarEjemplo('facturas de mercado libre')">Facturas de Mercado Libre</button>
+                <button class="ejemplo-btn" onclick="usarEjemplo('últimas 5 facturas')">Últimas 5 facturas</button>
+                <button class="ejemplo-btn" onclick="usarEjemplo('facturas sin CUIT')">Facturas sin CUIT</button>
+            </div>
+        </div>
+        
+        <!-- Tab de Duplicados -->
+        <div id="duplicados" class="tab-content">
+            <h2>Detector de Facturas Duplicadas</h2>
+            <button onclick="detectarDuplicados()" class="consulta-btn">Buscar Duplicados</button>
+            <div id="duplicados-resultado"></div>
+        </div>
+        
+        <!-- Tab de Estadísticas -->
+        <div id="estadisticas" class="tab-content">
+            <h2>Estadísticas Inteligentes</h2>
+            <button onclick="cargarEstadisticas()" class="consulta-btn">Actualizar Estadísticas</button>
+            <div id="estadisticas-resultado"></div>
+        </div>
+    </div>
+    
+    <footer>
+        <p>© 2023 Tu Empresa. Todos los derechos reservados.</p>
+        <p>Desarrollado por <a href="" target="_blank">Hernan A. Gaston"></a></p>
+    </footer>
+</body>
+</html>

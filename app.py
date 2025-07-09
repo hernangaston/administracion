@@ -21,6 +21,8 @@ from cuit_utils import limpiar_cuit, formatear_cuit, validar_cuit
 from auth_routes import auth_router, require_auth_cookie, get_current_user_from_cookie
 from auth import init_auth_tables, can_access_factura
 
+from agente_facturas import AgenteFacturas
+
 # Configurar logging con nivel WARNING para reducir ruido
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -430,3 +432,101 @@ async def api_estadisticas(
         )
     
     return obtener_estadisticas_facturas(db)
+
+#----------------AGENTE------------------------------------------------------------------
+@app.post("/agente/consulta")
+async def consulta_agente(request: Request, db: sqlite3.Connection = Depends(get_db)):
+    """
+    Endpoint para consultas en lenguaje natural
+    """
+    try:
+        # Obtener datos del formulario
+        form_data = await request.form()
+        consulta = form_data.get("consulta", "").strip()
+        
+        if not consulta:
+            return JSONResponse(
+                content={"error": "Debes escribir una consulta"},
+                status_code=400
+            )
+        
+        # Procesar con el agente
+        agente = AgenteFacturas(db)
+        resultado = agente.procesar_consulta(consulta)
+        
+        return JSONResponse(content=resultado)
+        
+    except Exception as e:
+        logger.error(f"Error en consulta agente: {e}")
+        return JSONResponse(
+            content={"error": str(e)},
+            status_code=500
+        )
+
+@app.get("/agente", response_class=HTMLResponse)
+async def pagina_agente(request: Request):
+    """
+    Página del agente inteligente
+    """
+    return templates.TemplateResponse("agente.html", {"request": request})
+
+@app.get("/agente/similares/{factura_id}")
+async def facturas_similares(factura_id: int, db: sqlite3.Connection = Depends(get_db)):
+    """
+    Buscar facturas similares a una específica
+    """
+    try:
+        agente = AgenteFacturas(db)
+        similares = agente.buscar_facturas_similares(factura_id)
+        
+        return JSONResponse(content={
+            "factura_id": factura_id,
+            "similares": similares,
+            "total_encontradas": len(similares)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error buscando similares: {e}")
+        return JSONResponse(
+            content={"error": str(e)},
+            status_code=500
+        )
+
+@app.get("/agente/duplicados")
+async def detectar_duplicados(db: sqlite3.Connection = Depends(get_db)):
+    """
+    Detectar facturas duplicadas
+    """
+    try:
+        agente = AgenteFacturas(db)
+        duplicados = agente.detectar_duplicados()
+        
+        return JSONResponse(content={
+            "duplicados": duplicados,
+            "total_duplicados": len(duplicados)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error detectando duplicados: {e}")
+        return JSONResponse(
+            content={"error": str(e)},
+            status_code=500
+        )
+
+@app.get("/agente/estadisticas")
+async def estadisticas_inteligentes(db: sqlite3.Connection = Depends(get_db)):
+    """
+    Estadísticas inteligentes sobre las facturas
+    """
+    try:
+        agente = AgenteFacturas(db)
+        estadisticas = agente.obtener_estadisticas_inteligentes()
+        
+        return JSONResponse(content=estadisticas)
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo estadísticas: {e}")
+        return JSONResponse(
+            content={"error": str(e)},
+            status_code=500
+        )
