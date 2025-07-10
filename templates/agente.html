@@ -4,12 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Agente Inteligente de Facturas</title>
-    <link rel="stylesheet" href="/static/styles.css">   
-    <script src="/static/js/agente-facturas.js"></script>
+    <link rel="stylesheet" href="/static/styles.css">
+    
 </head>
 <body>
     <div class="agente-container">
         <h1>🤖 Agente Inteligente de Facturas</h1>
+        
+        <div class="nav-links">
+            <a href="/" class="nav-link">← Volver al Listado</a>
+        </div>
         
         <div class="tabs">
             <button class="tab active" onclick="mostrarTab('consultas')">Consultas</button>
@@ -40,12 +44,14 @@
                 <button class="ejemplo-btn" onclick="usarEjemplo('facturas de mercado libre')">Facturas de Mercado Libre</button>
                 <button class="ejemplo-btn" onclick="usarEjemplo('últimas 5 facturas')">Últimas 5 facturas</button>
                 <button class="ejemplo-btn" onclick="usarEjemplo('facturas sin CUIT')">Facturas sin CUIT</button>
+                <button class="ejemplo-btn" onclick="usarEjemplo('total de facturas')">Total de facturas</button>
             </div>
         </div>
         
         <!-- Tab de Duplicados -->
         <div id="duplicados" class="tab-content">
             <h2>Detector de Facturas Duplicadas</h2>
+            <p>Esta función analiza tu base de datos para encontrar facturas que podrían estar duplicadas.</p>
             <button onclick="detectarDuplicados()" class="consulta-btn">Buscar Duplicados</button>
             <div id="duplicados-resultado"></div>
         </div>
@@ -53,14 +59,12 @@
         <!-- Tab de Estadísticas -->
         <div id="estadisticas" class="tab-content">
             <h2>Estadísticas Inteligentes</h2>
+            <p>Resumen automático de tus facturas con métricas importantes.</p>
             <button onclick="cargarEstadisticas()" class="consulta-btn">Actualizar Estadísticas</button>
             <div id="estadisticas-resultado"></div>
         </div>
     </div>
     
-    <footer>
-        <p>© 2023 Tu Empresa. Todos los derechos reservados.</p>
-        <p>Desarrollado por <a href="" target="_blank">Hernan A. Gaston"></a></p>
-    </footer>
+    <script src="/static/js/agente-facturas.js"></script>
 </body>
 </html>

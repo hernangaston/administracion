@@ -1,13 +1,33 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <title>Facturas Procesadas</title>
     <link rel="stylesheet" href="/static/styles.css">
 </head>
+
 <body>
     <div class="container">
         <h1>Lista de Facturas</h1>
+
+        <!-- Agregar este bloque después del h1 en tu index.html -->
+
+        <div style="margin: 20px 0; text-align: center;">
+            <a href="/agente" style="
+        display: inline-block;
+        background: linear-gradient(45deg, #007bff, #0056b3);
+        color: white;
+        padding: 12px 24px;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: bold;
+        box-shadow: 0 4px 8px rgba(0,123,255,0.3);
+        transition: transform 0.2s ease;
+    " onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                🤖 Usar Agente Inteligente
+            </a>
+        </div>
 
         <form action="/extract-text" method="post" enctype="multipart/form-data">
             <input type="file" name="files" multiple>
@@ -29,7 +49,7 @@
                 </tr>
             </thead>
             <tbody>
-            {% if facturas %}
+                {% if facturas %}
                 {% for factura in facturas %}
                 <tr>
                     <td>{{ factura.id }}</td>
@@ -42,14 +62,14 @@
                     <td>{{ factura.created_at[:10] }}</td>
                 </tr>
                 {% endfor %}
-            {% else %}
+                {% else %}
                 <tr>
                     <td colspan="8" style="text-align: center;">No hay facturas cargadas aún.</td>
                 </tr>
-            {% endif %}
+                {% endif %}
             </tbody>
         </table>
     </div>
 </body>
-</html>
 
+</html>

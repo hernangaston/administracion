@@ -246,7 +246,8 @@ table th {
     }
 }
 
-/* ESTILOS DEL AGENTE */
+/* Estilos para el Agente Inteligente */
+
 .agente-container {
     max-width: 1200px;
     margin: 0 auto;
@@ -259,6 +260,8 @@ table th {
     padding: 20px;
     margin-bottom: 30px;
     min-height: 400px;
+    max-height: 600px;
+    overflow-y: auto;
 }
 
 .mensaje {
@@ -404,7 +407,7 @@ table th {
     background: #fff;
     padding: 20px;
     border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .stat-number {
@@ -416,4 +419,19 @@ table th {
 .stat-label {
     color: #6c757d;
     font-size: 14px;
+}
+
+.nav-links {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.nav-link {
+    color: #007bff;
+    text-decoration: none;
+    margin: 0 15px;
+}
+
+.nav-link:hover {
+    text-decoration: underline;
 }

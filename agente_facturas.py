@@ -4,15 +4,14 @@ import logging
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from openai import OpenAI
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+import re
 import os
 from dotenv import load_dotenv
 
 # Cargar variables de entorno
 load_dotenv()
 
-# Configurar OpenAI
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 logger = logging.getLogger(__name__)
 
@@ -72,32 +71,42 @@ class AgenteFacturas:
         
         CONSULTA DEL USUARIO: "{consulta}"
         
-        INSTRUCCIONES:
-        1. Genera SOLO la consulta SQL, sin explicaciones
+        INSTRUCCIONES IMPORTANTES:
+        1. Genera SOLO consultas SELECT, nunca CREATE, DROP, INSERT, UPDATE, DELETE
         2. Usa SQLite syntax
         3. Para fechas usa strftime y DATE()
         4. Para búsquedas de texto usa LIKE con %
         5. Limita resultados a 50 con LIMIT
         6. Ordena por fecha más reciente (ORDER BY created_at DESC)
+        7. NUNCA uses palabras como CREATE, DROP, DELETE, UPDATE, INSERT, ALTER
         
-        EJEMPLOS:
+        EJEMPLOS VÁLIDOS:
         - "facturas de enero" -> SELECT * FROM facturas WHERE strftime('%m', created_at) = '01' ORDER BY created_at DESC LIMIT 50
         - "facturas mayores a 100000" -> SELECT * FROM facturas WHERE total > 100000 ORDER BY created_at DESC LIMIT 50
         - "facturas de mercado libre" -> SELECT * FROM facturas WHERE razon_social LIKE '%mercado%libre%' ORDER BY created_at DESC LIMIT 50
+        - "total de facturas" -> SELECT COUNT(*) as total_facturas FROM facturas
+        - "facturas sin CUIT" -> SELECT * FROM facturas WHERE cuit_proveedor IS NULL OR cuit_proveedor = '' ORDER BY created_at DESC LIMIT 50
         
-        SQL:
+        RESPONDE SOLO CON EL SQL:
         """
 
         try:
-            response = client.chat.completions.create(model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=200,
-            temperature=0.1)
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=200,
+                temperature=0.1
+            )
 
             sql_query = response.choices[0].message.content.strip()
 
             # Limpiar la respuesta
             sql_query = sql_query.replace("```sql", "").replace("```", "").strip()
+            
+            # Asegurar que empiece con SELECT
+            if not sql_query.upper().startswith('SELECT'):
+                logger.warning(f"Consulta no válida generada: {sql_query}")
+                return "SELECT * FROM facturas ORDER BY created_at DESC LIMIT 10"
 
             logger.info(f"SQL generado: {sql_query}")
             return sql_query
@@ -112,13 +121,29 @@ class AgenteFacturas:
         Ejecuta la consulta SQL de forma segura
         """
         try:
-            # Validaciones de seguridad básicas
-            sql_lower = sql_query.lower()
-            palabras_prohibidas = ['drop', 'delete', 'update', 'insert', 'alter', 'create']
-
-            for palabra in palabras_prohibidas:
-                if palabra in sql_lower:
-                    raise ValueError(f"Operación no permitida: {palabra}")
+            # Validaciones de seguridad mejoradas
+            sql_upper = sql_query.upper().strip()
+            
+            # Lista de operaciones prohibidas
+            operaciones_prohibidas = [
+                'DROP', 'DELETE', 'UPDATE', 'INSERT', 'ALTER', 
+                'CREATE', 'TRUNCATE', 'REPLACE', 'EXEC', 'EXECUTE'
+            ]
+            
+            # Verificar que sea una consulta SELECT
+            if not sql_upper.startswith('SELECT'):
+                raise ValueError("Solo se permiten consultas SELECT")
+            
+            # Buscar palabras prohibidas como palabras completas
+            for operacion in operaciones_prohibidas:
+                # Usar regex para buscar la palabra completa
+                patron = r'\b' + re.escape(operacion) + r'\b'
+                if re.search(patron, sql_upper):
+                    raise ValueError(f"Operación no permitida: {operacion}")
+            
+            # Verificar que no contenga múltiples statements
+            if ';' in sql_query and sql_query.rstrip().rstrip(';').count(';') > 0:
+                raise ValueError("No se permiten múltiples declaraciones SQL")
 
             cursor = self.db.cursor()
             cursor.execute(sql_query)
@@ -130,7 +155,11 @@ class AgenteFacturas:
 
                 # Formatear datos para mejor presentación
                 if resultado.get('total'):
-                    resultado['total_formateado'] = f"${resultado['total']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                    try:
+                        total_num = float(resultado['total'])
+                        resultado['total_formateado'] = f"${total_num:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                    except (ValueError, TypeError):
+                        resultado['total_formateado'] = str(resultado['total'])
 
                 if resultado.get('cuit_proveedor'):
                     cuit = resultado['cuit_proveedor']
@@ -162,47 +191,67 @@ class AgenteFacturas:
 
             # Preparar resumen de resultados
             total_facturas = len(resultados)
-            suma_total = sum(float(r.get('total', 0)) for r in resultados if r.get('total'))
+            
+            # Calcular suma total solo si hay columna 'total'
+            suma_total = 0
+            if resultados and 'total' in resultados[0]:
+                # Línea corregida:
+                suma_total = 0
+                for r in resultados:
+                    if r.get('total'):
+                        try:
+                            # Convertir formato argentino a formato Python
+                            total_str = str(r.get('total')).replace('.', '').replace(',', '.')
+                            suma_total += float(total_str)
+                        except (ValueError, TypeError):
+                            pass  # Ignorar valores que no se puedan convertir
 
             # Obtener algunos ejemplos
             ejemplos = []
             for i, resultado in enumerate(resultados[:3]):
-                razon_social = resultado.get('razon_social', 'Sin nombre')
-                total = resultado.get('total_formateado', 'N/A')
-                fecha = resultado.get('fecha_formateada', 'N/A')
-                ejemplos.append(f"• {razon_social} - {total} ({fecha})")
+                if 'razon_social' in resultado:
+                    razon_social = resultado.get('razon_social', 'Sin nombre')
+                    total = resultado.get('total_formateado', 'N/A')
+                    fecha = resultado.get('fecha_formateada', 'N/A')
+                    ejemplos.append(f"• {razon_social} - {total} ({fecha})")
+                else:
+                    # Para consultas de agregación (COUNT, SUM, etc.)
+                    ejemplos.append(f"• {resultado}")
 
             prompt = f"""
             Genera una respuesta natural y útil basada en estos datos:
             
             CONSULTA ORIGINAL: "{consulta_original}"
-            RESULTADOS ENCONTRADOS: {total_facturas} facturas
-            SUMA TOTAL: ${suma_total:,.2f}
+            RESULTADOS ENCONTRADOS: {total_facturas} registros
+            SUMA TOTAL: ${suma_total}
             
             EJEMPLOS:
             {chr(10).join(ejemplos)}
             
             INSTRUCCIONES:
             1. Responde en español de forma natural y amigable
-            2. Menciona la cantidad de facturas encontradas
+            2. Menciona la cantidad de resultados encontrados
             3. Si hay suma total significativa, menciónala
-            4. Da 2-3 ejemplos específicos
+            4. Da ejemplos específicos si los hay
             5. Mantén la respuesta concisa pero informativa
             6. Usa un tono profesional pero cercano
+            7. Si son resultados de agregación (COUNT, SUM), explica el resultado
             
             RESPUESTA:
             """
 
-            response = client.chat.completions.create(model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=300,
-            temperature=0.3)
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=300,
+                temperature=0.3
+            )
 
             return response.choices[0].message.content.strip()
 
         except Exception as e:
             logger.error(f"Error generando respuesta natural: {e}")
-            return f"Encontré {len(resultados)} facturas que coinciden con tu consulta."
+            return f"Encontré {len(resultados)} resultados que coinciden con tu consulta."
 
     def buscar_facturas_similares(self, factura_id: int) -> List[Dict]:
         """
@@ -300,6 +349,51 @@ class AgenteFacturas:
             return []
 
     def obtener_estadisticas_inteligentes(self) -> Dict:
+        """
+        Genera estadísticas inteligentes sobre las facturas
+        """
+        try:
+            cursor = self.db.cursor()
+
+            # Estadísticas básicas
+            cursor.execute("SELECT COUNT(*) as total FROM facturas")
+            total_facturas = cursor.fetchone()[0]
+
+            cursor.execute("SELECT SUM(total) as suma_total FROM facturas WHERE total IS NOT NULL")
+            suma_total = cursor.fetchone()[0] or 0
+
+            # Top 5 proveedores
+            cursor.execute("""
+                SELECT razon_social, COUNT(*) as cantidad, SUM(total) as total_proveedor
+                FROM facturas 
+                WHERE razon_social IS NOT NULL
+                GROUP BY razon_social
+                ORDER BY total_proveedor DESC
+                LIMIT 5
+            """)
+            top_proveedores = [dict(row) for row in cursor.fetchall()]
+
+            # Facturas por mes
+            cursor.execute("""
+                SELECT strftime('%Y-%m', created_at) as mes, COUNT(*) as cantidad
+                FROM facturas
+                GROUP BY mes
+                ORDER BY mes DESC
+                LIMIT 12
+            """)
+            por_mes = [dict(row) for row in cursor.fetchall()]
+
+            return {
+                "total_facturas": total_facturas,
+                "suma_total": suma_total,
+                "suma_total_formateada": f"${suma_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+                "top_proveedores": top_proveedores,
+                "facturas_por_mes": por_mes
+            }
+
+        except Exception as e:
+            logger.error(f"Error obteniendo estadísticas: {e}")
+            return {}        
         """
         Genera estadísticas inteligentes sobre las facturas
         """
