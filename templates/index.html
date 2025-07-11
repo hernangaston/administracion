@@ -35,17 +35,18 @@
         </form>
 
         <h2>Facturas procesadas</h2>
+        <!-- En templates/index.html, reemplazar la sección de la tabla: -->
         <table>
             <thead>
                 <tr>
                     <th>ID</th>
                     <th>Archivo</th>
+                    <th>Número</th>
                     <th>Razón Social</th>
                     <th>CUIT</th>
-                    <th>Subtotal</th>
-                    <th>IVA</th>
+                    <th>Fecha Factura</th>
                     <th>Total</th>
-                    <th>Fecha</th>
+                    <th>Fecha Proceso</th>
                 </tr>
             </thead>
             <tbody>
@@ -53,13 +54,31 @@
                 {% for factura in facturas %}
                 <tr>
                     <td>{{ factura.id }}</td>
-                    <td>{{ factura.filename }}</td>
-                    <td>{{ factura.razon_social }}</td>
-                    <td>{{ factura.cuit_proveedor_formateado or factura.cuit_proveedor }}</td>
-                    <td>{{ factura.subtotal }}</td>
-                    <td>{{ factura.iva }}</td>
-                    <td>{{ factura.total }}</td>
-                    <td>{{ factura.created_at[:10] }}</td>
+                    <td><a href="/factura/{{ factura.id }}">{{ factura.filename }}</a></td>
+                    <td>{{ factura.numero_factura_formateado or factura.numero_factura or 'Sin número' }}</td>
+                    <td>{{ factura.razon_social or 'Sin datos' }}</td>
+                    <td>{{ factura.cuit_proveedor_formateado or factura.cuit_proveedor or 'Sin CUIT' }}</td>
+                    <td>
+                        {% if factura.fecha_factura_formateada and factura.fecha_factura_formateada != 'Sin fecha' and
+                        factura.fecha_factura_formateada != 'Fecha inválida' %}
+                        {{ factura.fecha_factura_formateada }}
+                        {% elif factura.fecha_factura %}
+                        {{ factura.fecha_factura }}
+                        {% else %}
+                        Sin fecha
+                        {% endif %}
+                    </td>
+                    <td>{{ factura.total_formateado or '$ 0,00' }}</td>
+                    <td>
+                        {% if factura.created_at_formateado and factura.created_at_formateado != 'Sin fecha' and
+                        factura.created_at_formateado != 'Fecha inválida' %}
+                        {{ factura.created_at_formateado }}
+                        {% elif factura.created_at %}
+                        {{ factura.created_at[:10] if factura.created_at|length > 10 else factura.created_at }}
+                        {% else %}
+                        Sin fecha
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
                 {% else %}

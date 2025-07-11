@@ -1,25 +1,34 @@
 # -*- coding: utf-8 -*-
+import datetime
+from decimal import Decimal
 from fastapi import FastAPI, HTTPException, UploadFile, File, Request, Depends, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 
 from google.cloud import documentai_v1 as documentai
-from dotenv import load_dotenv
 import os
 import tempfile
 import sqlite3
 from typing import List, Dict
 import traceback
 import logging
+from datetime import datetime, timedelta
+
+from app.core.config import settings, setup_google_credentials
+from app.core.database import get_db, init_database
+from app.utils.formatters import formatear_moneda
 
 # Asegúrate que la importación coincida con la ubicación de tu archivo
-from parser_factura import guardar_factura_en_db, verificar_entidades_disponibles, obtener_estadisticas_facturas
+from parser_factura import guardar_factura_en_db
 
 from cuit_utils import limpiar_cuit, formatear_cuit, validar_cuit
 
 from auth_routes import auth_router, require_auth_cookie, get_current_user_from_cookie
 from auth import init_auth_tables, can_access_factura
+
+
+from helpers.iniciar_base import init_db_tables
 
 from agente_facturas import AgenteFacturas
 
@@ -27,10 +36,13 @@ from agente_facturas import AgenteFacturas
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
-# Cargar variables de entorno desde .env
-load_dotenv()
+
+
+# Configurar credenciales
+setup_google_credentials()
 
 app = FastAPI()
+
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -49,6 +61,10 @@ if google_creds_path:
 
 # Inicializar cliente de Document AI
 client = documentai.DocumentProcessorServiceClient()
+
+def init_db_tables():
+    """Usar la nueva función centralizada"""
+    init_database()
 
 def mapear_entidades_flexibles(entities_raw):
     mapeo_entidades = {
@@ -107,51 +123,113 @@ def reconstruir_line_items(data):
     if importe: item.append(f"Importe: {importe}")
     return {'line_item_1': " | ".join(item)} if item else {}
 
-def init_db_tables():
-    """Inicializa las tablas de la base de datos"""
-    try:
-        conn = sqlite3.connect("database.db")
-        cursor = conn.cursor()
-
-        # Tabla para facturas con datos estructurados
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS facturas (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                filename TEXT,
-                razon_social TEXT,
-                cuit_proveedor TEXT, -- Se mantiene como TEXT por los guiones, pero se valida que sean 11 dígitos
-                subtotal REAL,
-                iva REAL,
-                total REAL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-
-        # Tabla para el texto completo extraído del PDF
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS pdf_data (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                filename TEXT,
-                extracted_text TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP 
-            );
-        """)
-        conn.commit()
-        conn.close()
-
-    except sqlite3.Error as e:
-        logger.error(f"Error inicializando base de datos: {e}")
-
 # Helper para formatear moneda
+# DESPUÉS:
 def _formatear_moneda(valor) -> str:
-    """Formatea un número a string con formato de moneda argentina."""
-    if valor is None:
-        return ""
+    """Usar el nuevo formateador"""
+    return formatear_moneda(valor)
+
+def _formatear_fecha(fecha_str) -> str:
+    """Formatea una fecha para mostrar en la interfaz."""
+    if not fecha_str or fecha_str in ['', 'None', None]:
+        return "Sin fecha"
+    
     try:
-        # Formato: 1.234,56
-        return f"{float(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    except (ValueError, TypeError):
-        return str(valor) # Dejar como está si no es un número
+        fecha_str = str(fecha_str).strip()
+        
+        # Intentar diferentes formatos que pueden venir de SQLite
+        formatos_entrada = [
+            '%Y-%m-%d',           # 2024-01-15
+            '%Y-%m-%d %H:%M:%S',  # 2024-01-15 10:30:00
+            '%Y-%m-%d %H:%M:%S.%f', # 2024-01-15 10:30:00.123456
+            '%d/%m/%Y',           # 15/01/2024
+            '%d-%m-%Y',           # 15-01-2024
+        ]
+        
+        fecha_obj = None
+        for formato in formatos_entrada:
+            try:
+                fecha_obj = datetime.strptime(fecha_str, formato)
+                break
+            except ValueError:
+                continue
+        
+        if fecha_obj:
+            return fecha_obj.strftime('%d/%m/%Y')
+        else:
+            # Si no pudo parsear, intentar extraer solo la parte de fecha
+            # En caso de que venga algo como "2024-01-15T10:30:00"
+            if 'T' in fecha_str:
+                fecha_parte = fecha_str.split('T')[0]
+                fecha_obj = datetime.strptime(fecha_parte, '%Y-%m-%d')
+                return fecha_obj.strftime('%d/%m/%Y')
+            elif len(fecha_str) >= 10:
+                # Tomar los primeros 10 caracteres (YYYY-MM-DD)
+                fecha_parte = fecha_str[:10]
+                fecha_obj = datetime.strptime(fecha_parte, '%Y-%m-%d')
+                return fecha_obj.strftime('%d/%m/%Y')
+                
+        return str(fecha_str)  # Mostrar como viene si no se puede formatear
+        
+    except Exception as e:
+        # Para debugging - puedes comentar esta línea en producción
+        logger.warning(f"Error formateando fecha '{fecha_str}': {e}")
+        return "Fecha inválida"
+    
+def _formatear_numero_factura(numero) -> str:
+    """Formatea el número de factura."""
+    if not numero:
+        return "Sin número"
+    return str(numero).strip()
+
+def _procesar_factura_para_vista(factura_dict):
+    """Procesa una factura para mostrar en la vista con formatos correctos."""
+    
+    # Debug: mostrar qué datos llegan
+    logger.debug(f"Procesando factura ID {factura_dict.get('id')}")
+    logger.debug(f"  fecha_factura raw: '{factura_dict.get('fecha_factura')}' tipo: {type(factura_dict.get('fecha_factura'))}")
+    logger.debug(f"  created_at raw: '{factura_dict.get('created_at')}' tipo: {type(factura_dict.get('created_at'))}")
+    
+    # Formatear monedas
+    for campo_moneda in ['subtotal', 'iva', 'total']:
+        if campo_moneda in factura_dict:
+            factura_dict[f'{campo_moneda}_formateado'] = _formatear_moneda(factura_dict.get(campo_moneda))
+    
+    # Formatear fechas - con manejo de errores individual
+    try:
+        if 'fecha_factura' in factura_dict:
+            fecha_formateada = _formatear_fecha(factura_dict.get('fecha_factura'))
+            factura_dict['fecha_factura_formateada'] = fecha_formateada
+            logger.debug(f"  fecha_factura formateada: '{fecha_formateada}'")
+    except Exception as e:
+        logger.error(f"Error formateando fecha_factura: {e}")
+        factura_dict['fecha_factura_formateada'] = "Error fecha"
+    
+    try:
+        if 'fecha_vencimiento' in factura_dict:
+            factura_dict['fecha_vencimiento_formateada'] = _formatear_fecha(factura_dict.get('fecha_vencimiento'))
+    except Exception as e:
+        logger.error(f"Error formateando fecha_vencimiento: {e}")
+        factura_dict['fecha_vencimiento_formateada'] = "Error fecha"
+    
+    try:
+        if 'created_at' in factura_dict:
+            fecha_creacion = _formatear_fecha(factura_dict.get('created_at'))
+            factura_dict['created_at_formateado'] = fecha_creacion
+            logger.debug(f"  created_at formateado: '{fecha_creacion}'")
+    except Exception as e:
+        logger.error(f"Error formateando created_at: {e}")
+        factura_dict['created_at_formateado'] = "Error fecha"
+    
+    # Formatear número de factura
+    if 'numero_factura' in factura_dict:
+        factura_dict['numero_factura_formateado'] = _formatear_numero_factura(factura_dict.get('numero_factura'))
+    
+    # Formatear CUIT (ya existe la función)
+    if 'cuit_proveedor' in factura_dict:
+        factura_dict['cuit_proveedor_formateado'] = formatear_cuit(factura_dict.get('cuit_proveedor'))
+    
+    return factura_dict
 
 # Dependencia de FastAPI para gestionar la conexión a la BD
 def get_db():
@@ -203,6 +281,7 @@ def process_pdf(file_path: str) -> Dict:
         logger.error(f"Error procesando PDF: {e}")
         return {"text": "", "entities": {}, "entities_raw": {}, "pages_processed": 0}
 
+# En app.py, reemplazar la función home:
 @app.get("/", response_class=HTMLResponse)
 async def home(
     request: Request, 
@@ -214,34 +293,42 @@ async def home(
         current_user, token_data = current_user_data
         cursor = db.cursor()
         
-        # Filtrar facturas según el rol del usuario
+        # Actualizar consulta para incluir nuevos campos
         if current_user.role in ["admin", "contador", "vendedor", "auditor"]:
-            # Pueden ver todas las facturas
             cursor.execute("""
-                SELECT id, filename, razon_social, cuit_proveedor, subtotal, iva, total, created_at 
+                SELECT id, filename, razon_social, cuit_proveedor, numero_factura,
+                       fecha_factura, fecha_vencimiento, tipo_factura,
+                       subtotal, iva, total, created_at 
                 FROM facturas ORDER BY created_at DESC
             """)
         elif current_user.role == "cliente":
-            # Solo pueden ver facturas de su CUIT
             if current_user.cuit_asociado:
                 cursor.execute("""
-                    SELECT id, filename, razon_social, cuit_proveedor, subtotal, iva, total, created_at 
+                    SELECT id, filename, razon_social, cuit_proveedor, numero_factura,
+                           fecha_factura, fecha_vencimiento, tipo_factura,
+                           subtotal, iva, total, created_at 
                     FROM facturas 
                     WHERE cuit_proveedor = ? OR razon_social LIKE ?
                     ORDER BY created_at DESC
                 """, (current_user.cuit_asociado, f"%{current_user.cuit_asociado}%"))
             else:
-                cursor.execute("SELECT * FROM facturas WHERE 1=0")  # No mostrar nada
+                cursor.execute("SELECT * FROM facturas WHERE 1=0")
         else:
-            cursor.execute("SELECT * FROM facturas WHERE 1=0")  # No mostrar nada
+            cursor.execute("SELECT * FROM facturas WHERE 1=0")
 
         facturas_raw = cursor.fetchall()
+
+        for factura in facturas_raw[:1]:  # Solo la primera para no llenar logs
+            factura_dict = dict(factura)
+            logger.info(f"DEBUG - Datos de factura desde DB:")
+            logger.info(f"  fecha_factura: '{factura_dict.get('fecha_factura')}' (tipo: {type(factura_dict.get('fecha_factura'))})")
+            logger.info(f"  created_at: '{factura_dict.get('created_at')}' (tipo: {type(factura_dict.get('created_at'))})")
+
         facturas = []
         for factura in facturas_raw:
             factura_dict = dict(factura)
-            factura_dict['cuit_proveedor_formateado'] = formatear_cuit(factura_dict.get('cuit_proveedor'))
-            for key in ['subtotal', 'iva', 'total']:
-                factura_dict[f'{key}_formateado'] = _formatear_moneda(factura_dict.get(key))
+            # Usar la nueva función de procesamiento
+            factura_dict = _procesar_factura_para_vista(factura_dict)
             facturas.append(factura_dict)
 
         return templates.TemplateResponse("index.html", {
@@ -259,7 +346,7 @@ async def home(
             "error": str(e),
             "current_user": current_user if 'current_user' in locals() else None
         })
-
+    
 @app.get("/factura/{factura_id}", response_class=HTMLResponse)
 async def ver_factura(
     request: Request, 

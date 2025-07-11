@@ -193,18 +193,22 @@ class AgenteFacturas:
             total_facturas = len(resultados)
             
             # Calcular suma total solo si hay columna 'total'
+            
+
+            # Por esta versión corregida:
             suma_total = 0
-            if resultados and 'total' in resultados[0]:
-                # Línea corregida:
-                suma_total = 0
-                for r in resultados:
-                    if r.get('total'):
-                        try:
-                            # Convertir formato argentino a formato Python
-                            total_str = str(r.get('total')).replace('.', '').replace(',', '.')
-                            suma_total += float(total_str)
-                        except (ValueError, TypeError):
-                            pass  # Ignorar valores que no se puedan convertir
+            for r in resultados:
+                if r.get('total'):
+                    try:
+                        total_valor = r.get('total')
+                        if isinstance(total_valor, (int, float)):
+                            suma_total += float(total_valor)
+                        elif isinstance(total_valor, str):
+                            # Limpiar formato argentino si viene como string
+                            total_limpio = total_valor.replace('$', '').replace(' ', '').replace('.', '').replace(',', '.')
+                            suma_total += float(total_limpio)
+                    except (ValueError, TypeError):
+                        pass
 
             # Obtener algunos ejemplos
             ejemplos = []
