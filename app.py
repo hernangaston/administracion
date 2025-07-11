@@ -15,14 +15,14 @@ import traceback
 import logging
 from datetime import datetime, timedelta
 
-from app.core.config import settings, setup_google_credentials
-from app.core.database import get_db, init_database
-from app.utils.formatters import formatear_moneda
+from app_modules.core.config import settings, setup_google_credentials
+from app_modules.core.database import get_db, init_database
+from app_modules.utils.formatters import formatear_moneda
 
 # Asegúrate que la importación coincida con la ubicación de tu archivo
 from parser_factura import guardar_factura_en_db
 
-from cuit_utils import limpiar_cuit, formatear_cuit, validar_cuit
+from app_modules.utils.cuit_utils import limpiar_cuit, formatear_cuit, validar_cuit
 
 from auth_routes import auth_router, require_auth_cookie, get_current_user_from_cookie
 from auth import init_auth_tables, can_access_factura

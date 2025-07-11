@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 import re
 from decimal import Decimal, InvalidOperation
-from cuit_utils import validar_cuit_completo
+from app_modules.utils.cuit_utils import validar_cuit_completo
 
 # Configurar logging
 logger = logging.getLogger(__name__)

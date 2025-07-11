@@ -1,4 +1,4 @@
-/* Estilos específicos para dashboard - extraer de main.css */
+/* Estilos específicos para dashboard */
 .dashboard-card {
     transition: transform 0.2s, box-shadow 0.2s;
     border: none;
@@ -15,4 +15,35 @@
     opacity: 0.8;
 }
 
-/* ... otros estilos de dashboard ... */
+.navbar-brand {
+    font-weight: 600;
+}
+
+.user-info {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 2rem;
+}
+
+/* Animaciones para cards */
+.card {
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .dashboard-card {
+        margin-bottom: 1rem;
+    }
+    
+    .user-info {
+        text-align: center;
+    }
+}
