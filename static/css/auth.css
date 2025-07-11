@@ -48,3 +48,25 @@
     border-color: #667eea;
     box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
 }
+
+.register-link {
+    text-align: center;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #eee;
+}
+
+.register-link p {
+    margin: 0;
+}
+
+.register-link a {
+    color: #667eea;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.register-link a:hover {
+    color: #764ba2;
+    text-decoration: underline;
+}
