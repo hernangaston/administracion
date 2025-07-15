@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,50 +12,61 @@
             min-height: 100vh;
             padding: 2rem 0;
         }
+
         .register-container {
             background: white;
             padding: 2rem;
             border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
             width: 100%;
             max-width: 500px;
             margin: 0 auto;
         }
+
         .register-header {
             text-align: center;
             margin-bottom: 2rem;
         }
+
         .register-header h1 {
             color: #333;
             margin-bottom: 0.5rem;
         }
+
         .register-header p {
             color: #666;
             margin: 0;
         }
+
         .btn-primary {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border: none;
             padding: 12px;
             font-weight: 600;
         }
+
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
         }
-        .form-control:focus, .form-select:focus {
+
+        .form-control:focus,
+        .form-select:focus {
             border-color: #667eea;
             box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
         }
+
         .alert {
             border-radius: 10px;
         }
+
         .login-link {
             text-align: center;
             margin-top: 1.5rem;
             padding-top: 1.5rem;
             border-top: 1px solid #eee;
         }
+
         .role-info {
             font-size: 0.85rem;
             color: #666;
@@ -62,6 +74,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="register-container">
@@ -88,19 +101,39 @@
                         <label for="username" class="form-label">Usuario *</label>
                         <input type="text" class="form-control" id="username" name="username" required>
                     </div>
-                    
+
                     <div class="col-md-6 mb-3">
                         <label for="email" class="form-label">Email *</label>
                         <input type="email" class="form-control" id="email" name="email" required>
                     </div>
                 </div>
-                
+
                 <div class="mb-3">
                     <label for="password" class="form-label">Contraseña *</label>
-                    <input type="password" class="form-control" id="password" name="password" required minlength="6">
-                    <div class="form-text">Mínimo 6 caracteres</div>
+                    <input type="password" class="form-control" id="password" name="password" required minlength="8"
+                        onkeyup="checkPasswordStrength()">
+
+                    <!-- NUEVO: Indicador de fortaleza -->
+                    <div class="password-strength mt-2">
+                        <div class="progress" style="height: 6px;">
+                            <div id="strength-bar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <small id="password-feedback" class="form-text text-muted">
+                            La contraseña debe tener al menos 8 caracteres con mayúsculas, minúsculas, números y
+                            símbolos
+                        </small>
+                    </div>
+
+                    <!-- Lista de requisitos -->
+                    <div class="password-requirements mt-2" style="font-size: 0.85rem;">
+                        <div id="req-length" class="text-danger">✗ Al menos 8 caracteres</div>
+                        <div id="req-uppercase" class="text-danger">✗ Al menos una mayúscula</div>
+                        <div id="req-lowercase" class="text-danger">✗ Al menos una minúscula</div>
+                        <div id="req-numbers" class="text-danger">✗ Al menos un número</div>
+                        <div id="req-special" class="text-danger">✗ Al menos un símbolo (!@#$%^&*)</div>
+                    </div>
                 </div>
-                
+
                 <div class="mb-3">
                     <label for="role" class="form-label">Rol *</label>
                     <select class="form-select" id="role" name="role" required onchange="toggleCuitField()">
@@ -116,21 +149,22 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="mb-3" id="cuit-field">
                     <label for="cuit_asociado" class="form-label">CUIT Asociado</label>
-                    <input type="text" class="form-control" id="cuit_asociado" name="cuit_asociado" 
-                           placeholder="XX-XXXXXXXX-X" maxlength="13">
+                    <input type="text" class="form-control" id="cuit_asociado" name="cuit_asociado"
+                        placeholder="XX-XXXXXXXX-X" maxlength="13">
                     <div class="form-text">Para clientes: CUIT para filtrar sus facturas</div>
                 </div>
-                
+
                 <button type="submit" class="btn btn-primary w-100">
                     Crear Cuenta
                 </button>
             </form>
 
             <div class="login-link">
-                <p class="text-muted">¿Ya tienes cuenta? <a href="/auth/login" class="text-decoration-none">Inicia sesión aquí</a></p>
+                <p class="text-muted">¿Ya tienes cuenta? <a href="/auth/login" class="text-decoration-none">Inicia
+                        sesión aquí</a></p>
             </div>
         </div>
     </div>
@@ -142,7 +176,7 @@
             const cuitField = document.getElementById('cuit-field');
             const cuitInput = document.getElementById('cuit_asociado');
             const roleDescription = document.getElementById('role-description');
-            
+
             const descriptions = {
                 'cliente': '<strong>Cliente:</strong> Puede ver solo sus propias facturas',
                 'vendedor': '<strong>Vendedor:</strong> Puede crear y ver facturas',
@@ -150,9 +184,9 @@
                 'auditor': '<strong>Auditor:</strong> Solo lectura de facturas y reportes',
                 'admin': '<strong>Administrador:</strong> Acceso completo al sistema'
             };
-            
+
             roleDescription.innerHTML = descriptions[role];
-            
+
             if (role === 'cliente') {
                 cuitField.style.display = 'block';
                 cuitInput.required = true;
@@ -162,9 +196,9 @@
                 cuitInput.value = '';
             }
         }
-        
+
         // Formatear CUIT mientras se escribe
-        document.getElementById('cuit_asociado').addEventListener('input', function(e) {
+        document.getElementById('cuit_asociado').addEventListener('input', function (e) {
             let value = e.target.value.replace(/\D/g, '');
             if (value.length >= 2) {
                 value = value.substring(0, 2) + '-' + value.substring(2);
@@ -174,9 +208,87 @@
             }
             e.target.value = value;
         });
-        
+
         // Inicializar estado del campo CUIT
         toggleCuitField();
+
+        function checkPasswordStrength() {
+            const password = document.getElementById('password').value;
+            const strengthBar = document.getElementById('strength-bar');
+            const feedback = document.getElementById('password-feedback');
+
+            // Verificar requisitos
+            const checks = {
+                length: password.length >= 8,
+                uppercase: /[A-Z]/.test(password),
+                lowercase: /[a-z]/.test(password),
+                numbers: /\d/.test(password),
+                special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+            };
+
+            // Actualizar indicadores visuales
+            updateRequirement('req-length', checks.length);
+            updateRequirement('req-uppercase', checks.uppercase);
+            updateRequirement('req-lowercase', checks.lowercase);
+            updateRequirement('req-numbers', checks.numbers);
+            updateRequirement('req-special', checks.special);
+
+            // Calcular puntuación
+            const score = Object.values(checks).filter(Boolean).length;
+            const percentage = (score / 5) * 100;
+
+            // Actualizar barra de progreso
+            strengthBar.style.width = percentage + '%';
+
+            if (score < 2) {
+                strengthBar.className = 'progress-bar bg-danger';
+                feedback.textContent = 'Contraseña muy débil';
+                feedback.className = 'form-text text-danger';
+            } else if (score < 4) {
+                strengthBar.className = 'progress-bar bg-warning';
+                feedback.textContent = 'Contraseña débil';
+                feedback.className = 'form-text text-warning';
+            } else if (score < 5) {
+                strengthBar.className = 'progress-bar bg-info';
+                feedback.textContent = 'Contraseña buena';
+                feedback.className = 'form-text text-info';
+            } else {
+                strengthBar.className = 'progress-bar bg-success';
+                feedback.textContent = 'Contraseña excelente';
+                feedback.className = 'form-text text-success';
+            }
+        }
+
+        function updateRequirement(elementId, isMet) {
+            const element = document.getElementById(elementId);
+            if (isMet) {
+                element.className = 'text-success';
+                element.innerHTML = element.innerHTML.replace('✗', '✓');
+            } else {
+                element.className = 'text-danger';
+                element.innerHTML = element.innerHTML.replace('✓', '✗');
+            }
+        }
+
+        // Prevenir envío si la contraseña es débil
+        document.querySelector('form').addEventListener('submit', function (e) {
+            const password = document.getElementById('password').value;
+            const checks = {
+                length: password.length >= 8,
+                uppercase: /[A-Z]/.test(password),
+                lowercase: /[a-z]/.test(password),
+                numbers: /\d/.test(password),
+                special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+            };
+
+            const score = Object.values(checks).filter(Boolean).length;
+            if (score < 4) {
+                e.preventDefault();
+                alert('Por favor, usa una contraseña más segura antes de continuar.');
+                return false;
+            }
+        });
     </script>
 </body>
+
 </html>

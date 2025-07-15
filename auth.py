@@ -17,6 +17,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -190,11 +191,44 @@ def init_auth_tables(db: sqlite3.Connection):
         """, ("admin", "admin@sistema.com", admin_password, "admin"))
         logger.info("Usuario admin creado con contraseña 'admin123'")
     
+     # NUEVA TABLA: Historial de intentos de login
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS login_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            ip_address TEXT,
+            user_agent TEXT,
+            success BOOLEAN NOT NULL,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            failure_reason TEXT
+        );
+    """)
+    
+    # NUEVA TABLA: Cuentas bloqueadas temporalmente
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS account_lockouts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            locked_until TIMESTAMP NOT NULL,
+            attempts_count INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+    
     db.commit()
 
 def create_user(db: sqlite3.Connection, user_data: UserCreate) -> User:
     """Crea un nuevo usuario"""
     cursor = db.cursor()
+    
+    # NUEVA VALIDACIÓN DE CONTRASEÑA
+    password_check = AuthEnhancer.validate_password_strength(user_data.password)
+    if not password_check['is_strong']:
+        feedback = AuthEnhancer.get_password_feedback(password_check)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Contraseña no cumple requisitos: {', '.join(feedback)}"
+        )
     
     # Verificar que el rol existe
     if user_data.role not in ROLES_PERMISOS:
@@ -283,15 +317,61 @@ def get_user_by_id(db: sqlite3.Connection, user_id: int) -> User:
         created_at=datetime.fromisoformat(row[6]) if row[6] else datetime.now()
     )
 
-def authenticate_user(db: sqlite3.Connection, username: str, password: str) -> Optional[Dict]:
-    """Autentica un usuario"""
+def authenticate_user(db: sqlite3.Connection, username: str, password: str, 
+                     ip_address: str = None, user_agent: str = None) -> Optional[Dict]:
+    """Autentica un usuario con protección contra ataques"""
+    
+    print(f"🔍 AUTH DEBUG: Iniciando autenticación para {username}")
+    
+    # 1. Verificar si la cuenta está bloqueada
+    lockout_info = AuthEnhancer.is_account_locked(db, username)
+    if lockout_info["is_locked"]:
+        print(f"🔒 AUTH DEBUG: Cuenta bloqueada hasta {lockout_info['locked_until']}")
+        AuthEnhancer.log_login_attempt(
+            db, username, False, ip_address, user_agent, 
+            f"account_locked_until_{lockout_info['locked_until']}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_423_LOCKED,
+            detail=f"Cuenta bloqueada por seguridad. Intenta en {lockout_info['minutes_remaining']} minutos."
+        )
+    
+    # 2. Buscar usuario
     user = get_user_by_username(db, username)
     if not user:
+        print(f"❌ AUTH DEBUG: Usuario {username} no encontrado")
+        AuthEnhancer.log_login_attempt(
+            db, username, False, ip_address, user_agent, "user_not_found"
+        )
         return None
     
+    print(f"👤 AUTH DEBUG: Usuario encontrado: {user['username']}")
+    
+    # 3. Verificar contraseña
     if not verify_password(password, user["password_hash"]):
+        print(f"❌ AUTH DEBUG: Contraseña incorrecta para {username}")
+        AuthEnhancer.log_login_attempt(
+            db, username, False, ip_address, user_agent, "invalid_password"
+        )
+        
+        # Verificar si se debe bloquear la cuenta
+        if AuthEnhancer.should_lock_account(db, username):
+            print(f"🔒 AUTH DEBUG: Bloqueando cuenta {username}")
+            AuthEnhancer.lock_account(db, username, 5)
+        
         return None
     
+    print(f"✅ AUTH DEBUG: Contraseña correcta para {username}")
+    
+    # 4. Login exitoso
+    AuthEnhancer.log_login_attempt(
+        db, username, True, ip_address, user_agent, None
+    )
+    
+    # Limpiar intentos fallidos anteriores
+    AuthEnhancer.clear_failed_attempts(db, username)
+    
+    print(f"🎉 AUTH DEBUG: Login exitoso para {username}")
     return user
 
 def store_refresh_token(db: sqlite3.Connection, user_id: int, refresh_token: str):
@@ -379,6 +459,7 @@ def require_role(required_roles: List[str]):
 
 # Función para verificar acceso a facturas específicas
 def can_access_factura(user: User, token_data: TokenData, factura_cuit: str) -> bool:
+
     """Verifica si un usuario puede acceder a una factura específica"""
     # Admin y auditor pueden ver todo
     if user.role in ["admin", "auditor"]:
@@ -395,3 +476,192 @@ def can_access_factura(user: User, token_data: TokenData, factura_cuit: str) -> 
         return False
     
     return False
+
+class AuthEnhancer:
+    """Mejoras de seguridad para el sistema de autenticación"""
+    
+    @staticmethod
+    def validate_password_strength(password: str) -> Dict[str, bool]:
+        """Valida la fortaleza de la contraseña"""
+        checks = {
+            'length': len(password) >= 8,
+            'uppercase': bool(re.search(r'[A-Z]', password)),
+            'lowercase': bool(re.search(r'[a-z]', password)),
+            'numbers': bool(re.search(r'\d', password)),
+            'special': bool(re.search(r'[!@#$%^&*(),.?":{}|<>]', password))
+        }
+        
+        checks['score'] = sum(checks.values())
+        checks['is_strong'] = checks['score'] >= 4
+        
+        return checks
+    
+    @staticmethod
+    def generate_password_requirements_message() -> str:
+        """Genera mensaje de requisitos de contraseña"""
+        return """
+        La contraseña debe tener:
+        • Al menos 8 caracteres
+        • Al menos una mayúscula
+        • Al menos una minúscula  
+        • Al menos un número
+        • Al menos un carácter especial (!@#$%^&*(),.?":{}|<>)
+        """
+    
+    @staticmethod
+    def check_password_history(db, user_id: int, new_password_hash: str, limit: int = 5) -> bool:
+        """Evita reutilización de contraseñas recientes"""
+        cursor = db.cursor()
+        cursor.execute("""
+            SELECT password_hash FROM password_history 
+            WHERE user_id = ? 
+            ORDER BY created_at DESC 
+            LIMIT ?
+        """, (user_id, limit))
+        
+        recent_passwords = [row[0] for row in cursor.fetchall()]
+        return new_password_hash not in recent_passwords
+    
+    @staticmethod
+    def log_failed_attempt(db, username: str, ip_address: str):
+        """Registra intento fallido de login"""
+        cursor = db.cursor()
+        cursor.execute("""
+            INSERT INTO login_attempts (username, ip_address, success, timestamp)
+            VALUES (?, ?, FALSE, ?)
+        """, (username, ip_address, datetime.utcnow()))
+        db.commit()
+    
+    @staticmethod
+    def is_account_locked(db, username: str, lockout_minutes: int = 15, max_attempts: int = 5) -> bool:
+        """Verifica si la cuenta está bloqueada por múltiples intentos fallidos"""
+        cursor = db.cursor()
+        since = datetime.utcnow() - timedelta(minutes=lockout_minutes)
+        
+        cursor.execute("""
+            SELECT COUNT(*) FROM login_attempts 
+            WHERE username = ? AND success = FALSE AND timestamp > ?
+        """, (username, since))
+        
+        failed_attempts = cursor.fetchone()[0]
+        return failed_attempts >= max_attempts
+    
+    @staticmethod
+    def get_password_feedback(checks: Dict[str, bool]) -> List[str]:
+        """Genera lista de mejoras para la contraseña"""
+        feedback = []
+        
+        if not checks['length']:
+            feedback.append("Debe tener al menos 8 caracteres")
+        if not checks['uppercase']:
+            feedback.append("Debe incluir al menos una mayúscula")
+        if not checks['lowercase']:
+            feedback.append("Debe incluir al menos una minúscula")
+        if not checks['numbers']:
+            feedback.append("Debe incluir al menos un número")
+        if not checks['special']:
+            feedback.append("Debe incluir al menos un carácter especial (!@#$%^&*)")
+            
+        return feedback
+    
+    @staticmethod
+    def log_login_attempt(db, username: str, success: bool, ip_address: str = None, 
+                         user_agent: str = None, failure_reason: str = None):
+        """Registra intento de login"""
+        cursor = db.cursor()
+        cursor.execute("""
+            INSERT INTO login_attempts (username, ip_address, user_agent, success, failure_reason)
+            VALUES (?, ?, ?, ?, ?)
+        """, (username, ip_address, user_agent, success, failure_reason))
+        db.commit()
+    
+    @staticmethod
+    def get_recent_failed_attempts(db, username: str, minutes: int = 15) -> int:
+        """Cuenta intentos fallidos recientes"""
+        cursor = db.cursor()
+        since = datetime.utcnow() - timedelta(minutes=minutes)
+        
+        cursor.execute("""
+            SELECT COUNT(*) FROM login_attempts 
+            WHERE username = ? AND success = FALSE AND timestamp > ?
+        """, (username, since))
+        
+        return cursor.fetchone()[0]
+    
+    @staticmethod
+    def is_account_locked(db, username: str) -> Dict:
+        """Verifica si la cuenta está bloqueada"""
+        cursor = db.cursor()
+        
+        # Verificar bloqueo activo
+        cursor.execute("""
+            SELECT locked_until, attempts_count FROM account_lockouts 
+            WHERE username = ? AND locked_until > datetime('now')
+            ORDER BY created_at DESC LIMIT 1
+        """, (username,))
+        
+        result = cursor.fetchone()
+        if result:
+            locked_until, attempts = result
+            return {
+                "is_locked": True,
+                "locked_until": locked_until,
+                "attempts_count": attempts,
+                "minutes_remaining": int((datetime.fromisoformat(locked_until) - datetime.utcnow()).total_seconds() / 60)
+            }
+        
+        return {"is_locked": False}
+    
+    @staticmethod
+    def lock_account(db, username: str, attempts_count: int, lockout_minutes: int = 15):
+        """Bloquea una cuenta temporalmente"""
+        cursor = db.cursor()
+        locked_until = datetime.utcnow() + timedelta(minutes=lockout_minutes)
+        
+        cursor.execute("""
+            INSERT INTO account_lockouts (username, locked_until, attempts_count)
+            VALUES (?, ?, ?)
+        """, (username, locked_until, attempts_count))
+        db.commit()
+        
+        logger.warning(f"Cuenta bloqueada: {username} por {lockout_minutes} minutos ({attempts_count} intentos)")
+    
+    @staticmethod
+    def should_lock_account(db, username: str, max_attempts: int = 5, window_minutes: int = 15) -> bool:
+        """Determina si se debe bloquear la cuenta"""
+        failed_attempts = AuthEnhancer.get_recent_failed_attempts(db, username, window_minutes)
+        return failed_attempts >= max_attempts
+    
+    @staticmethod
+    def clear_failed_attempts(db, username: str):
+        """Limpia intentos fallidos después de login exitoso"""
+        cursor = db.cursor()
+        # Marcar como resueltos (no eliminar para auditoría)
+        cursor.execute("""
+            UPDATE login_attempts 
+            SET failure_reason = 'resolved_by_successful_login'
+            WHERE username = ? AND success = FALSE AND failure_reason IS NULL
+        """, (username,))
+        db.commit()
+
+
+class TwoFactorAuth:
+    """Implementación de autenticación de dos factores"""
+    
+    @staticmethod
+    def generate_totp_secret() -> str:
+        """Genera secreto para TOTP (Google Authenticator)"""
+        return secrets.token_urlsafe(32)
+    
+    @staticmethod
+    def generate_backup_codes(count: int = 10) -> List[str]:
+        """Genera códigos de respaldo"""
+        return [secrets.token_hex(4).upper() for _ in range(count)]
+    
+    @staticmethod
+    def send_sms_code(phone_number: str) -> str:
+        """Envía código por SMS (implementar con Twilio/etc)"""
+        code = str(secrets.randbelow(900000) + 100000)  # 6 dígitos
+        # TODO: Integrar con servicio SMS
+        print(f"Código SMS para {phone_number}: {code}")
+        return code

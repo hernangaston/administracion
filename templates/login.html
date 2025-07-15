@@ -20,8 +20,18 @@
         </div>
 
         {% if error %}
-        <div class="alert alert-danger" role="alert">
-            <i class="fas fa-exclamation-circle"></i> {{ error }}
+        <div class="alert {{ 'alert-warning' if account_locked else 'alert-danger' }}" role="alert">
+            <i class="fas fa-{{ 'lock' if account_locked else 'exclamation-circle' }}"></i>
+            {{ error }}
+
+            {% if account_locked %}
+            <hr>
+            <small>
+                <strong>¿Por qué se bloqueó mi cuenta?</strong><br>
+                Por seguridad, las cuentas se bloquean temporalmente después de 5 intentos fallidos.
+                Esto protege tu cuenta de accesos no autorizados.
+            </small>
+            {% endif %}
         </div>
         {% endif %}
 

@@ -56,49 +56,81 @@ async def login_form(
     db: sqlite3.Connection = Depends(get_db)
 ):
     """Procesa el formulario de login"""
-    user = authenticate_user(db, username, password)
-    if not user:
+    
+    # Obtener información de la request
+    ip_address = request.client.host if request.client else "unknown"
+    user_agent = request.headers.get("user-agent", "unknown")
+    
+    print(f"🔍 DEBUG: Intentando login para usuario: {username}")
+    print(f"🔍 DEBUG: IP: {ip_address}, User-Agent: {user_agent[:50]}...")
+    
+    try:
+        user = authenticate_user(db, username, password, ip_address, user_agent)
+        print(f"🔍 DEBUG: Resultado authenticate_user: {user}")
+        
+        if not user:
+            print("❌ DEBUG: Usuario no autenticado")
+            return templates.TemplateResponse(
+                "login.html", 
+                {"request": request, "error": "Usuario o contraseña incorrectos"}
+            )
+        
+        print("✅ DEBUG: Usuario autenticado exitosamente")
+        
+        # Crear tokens
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user["username"], "user_id": user["id"], "role": user["role"]},
+            expires_delta=access_token_expires
+        )
+        refresh_token = create_refresh_token(
+            data={"sub": user["username"], "user_id": user["id"]}
+        )
+        
+        print(f"🔍 DEBUG: Tokens creados, redirigiendo a /")
+        
+        # Guardar refresh token
+        store_refresh_token(db, user["id"], refresh_token)
+        
+        # Crear respuesta con redirección
+        response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+        
+        # Establecer cookies seguras
+        response.set_cookie(
+            key="access_token",
+            value=f"Bearer {access_token}",
+            httponly=True,
+            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            secure=False,  # Cambiar a True en producción con HTTPS
+            samesite="lax"
+        )
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            max_age=7 * 24 * 60 * 60,  # 7 días
+            secure=False,  # Cambiar a True en producción
+            samesite="lax"
+        )
+        
+        print("🔍 DEBUG: Respuesta de redirección creada")
+        return response
+        
+    except HTTPException as e:
+        print(f"❌ DEBUG: HTTPException: {e.status_code} - {e.detail}")
+        # Manejar cuenta bloqueada
+        if e.status_code == 423:  # HTTP_423_LOCKED
+            return templates.TemplateResponse(
+                "login.html", 
+                {"request": request, "error": e.detail, "account_locked": True}
+            )
+        raise e
+    except Exception as e:
+        print(f"❌ DEBUG: Error inesperado: {e}")
         return templates.TemplateResponse(
             "login.html", 
-            {"request": request, "error": "Usuario o contraseña incorrectos"}
+            {"request": request, "error": "Error interno del servidor"}
         )
-    
-    # Crear tokens
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user["username"], "user_id": user["id"], "role": user["role"]},
-        expires_delta=access_token_expires
-    )
-    refresh_token = create_refresh_token(
-        data={"sub": user["username"], "user_id": user["id"]}
-    )
-    
-    # Guardar refresh token
-    store_refresh_token(db, user["id"], refresh_token)
-    
-    # Crear respuesta con redirección
-    response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
-    
-    # Establecer cookies seguras
-    response.set_cookie(
-        key="access_token",
-        value=f"Bearer {access_token}",
-        httponly=True,
-        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        secure=False,  # Cambiar a True en producción con HTTPS
-        samesite="lax"
-    )
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        max_age=7 * 24 * 60 * 60,  # 7 días
-        secure=False,  # Cambiar a True en producción
-        samesite="lax"
-    )
-    
-    return response
-
 @auth_router.post("/register")
 async def register_form(
     request: Request,

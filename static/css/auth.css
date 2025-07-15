@@ -70,3 +70,20 @@
     color: #764ba2;
     text-decoration: underline;
 }
+
+.password-requirements div {
+    margin: 2px 0;
+    font-weight: 500;
+}
+
+.progress {
+    background-color: #e9ecef;
+}
+
+.text-success {
+    color: #28a745 !important;
+}
+
+.text-danger {
+    color: #dc3545 !important;
+}
