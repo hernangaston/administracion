@@ -1,0 +1,352 @@
+/* Estilos específicos del agente inteligente - Versión minimalista */
+
+/* Contenedor principal */
+.agente-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px;
+    background-color: #ffffff;
+}
+
+/* Chat container */
+.chat-container {
+    background: #fafafa;
+    padding: 24px;
+    margin-bottom: 32px;
+    min-height: 400px;
+    max-height: 600px;
+    overflow-y: auto;
+    border: 1px solid #e6e6e6;
+}
+
+/* Mensajes */
+.mensaje {
+    margin: 16px 0;
+    padding: 16px;
+    max-width: 80%;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.mensaje.usuario {
+    background: #1a1a1a;
+    color: #ffffff;
+    margin-left: auto;
+    text-align: right;
+}
+
+.mensaje.agente {
+    background: #ffffff;
+    color: #2a2a2a;
+    margin-right: auto;
+    border: 1px solid #e6e6e6;
+}
+
+.mensaje strong {
+    font-weight: 500;
+    display: block;
+    margin-bottom: 8px;
+}
+
+/* Formulario de consulta */
+.consulta-form {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.consulta-input {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #cccccc;
+    font-size: 14px;
+    background-color: #ffffff;
+    color: #2a2a2a;
+}
+
+.consulta-input:focus {
+    outline: none;
+    border-color: #1a1a1a;
+}
+
+.consulta-input::placeholder {
+    color: #999999;
+}
+
+.consulta-btn {
+    padding: 12px 24px;
+    background: #1a1a1a;
+    color: #ffffff;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.15s ease;
+}
+
+.consulta-btn:hover {
+    background: #333333;
+}
+
+.consulta-btn:disabled {
+    background: #cccccc;
+    cursor: not-allowed;
+    color: #999999;
+}
+
+/* Ejemplos de consultas */
+.ejemplos-consultas {
+    margin-top: 24px;
+}
+
+.ejemplos-consultas p {
+    color: #2a2a2a;
+    font-weight: 500;
+    margin-bottom: 12px;
+    font-size: 14px;
+}
+
+.ejemplo-btn {
+    display: inline-block;
+    margin: 4px;
+    padding: 8px 12px;
+    background: #ffffff;
+    color: #2a2a2a;
+    border: 1px solid #e6e6e6;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.15s ease;
+}
+
+.ejemplo-btn:hover {
+    background: #f0f0f0;
+    border-color: #cccccc;
+}
+
+/* Tablas de resultados */
+.resultados-tabla {
+    margin-top: 24px;
+    overflow-x: auto;
+}
+
+.resultados-tabla table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: #ffffff;
+    border: 1px solid #e6e6e6;
+}
+
+.resultados-tabla th {
+    background-color: #fafafa;
+    color: #1a1a1a;
+    font-weight: 500;
+    padding: 12px;
+    border-bottom: 2px solid #e6e6e6;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.resultados-tabla td {
+    padding: 12px;
+    border-bottom: 1px solid #f0f0f0;
+    color: #2a2a2a;
+    font-size: 14px;
+}
+
+.resultados-tabla tr:hover {
+    background-color: #fafafa;
+}
+
+/* Estados y mensajes */
+.loading {
+    text-align: center;
+    padding: 24px;
+    color: #666666;
+    font-style: italic;
+}
+
+.error {
+    background: #f8f8f8;
+    color: #666666;
+    padding: 16px;
+    margin: 12px 0;
+    border: 1px solid #e6e6e6;
+}
+
+.sql-debug {
+    background: #f8f8f8;
+    border: 1px solid #e6e6e6;
+    padding: 12px;
+    margin: 12px 0;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+    font-size: 12px;
+    color: #666666;
+}
+
+/* Sistema de tabs */
+.tabs {
+    display: flex;
+    margin-bottom: 24px;
+    border-bottom: 1px solid #e6e6e6;
+    background-color: #ffffff;
+}
+
+.tab {
+    padding: 12px 24px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    color: #666666;
+    border-bottom: 2px solid transparent;
+    font-weight: 500;
+    transition: all 0.15s ease;
+}
+
+.tab.active {
+    color: #1a1a1a;
+    border-bottom-color: #1a1a1a;
+}
+
+.tab:hover {
+    color: #1a1a1a;
+    background-color: #fafafa;
+}
+
+.tab-content {
+    display: none;
+    padding: 24px 0;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Grid de estadísticas */
+.estadisticas-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 24px;
+    margin-top: 24px;
+}
+
+.stat-card {
+    background: #ffffff;
+    padding: 24px;
+    border: 1px solid #e6e6e6;
+    transition: box-shadow 0.15s ease;
+}
+
+.stat-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.stat-number {
+    font-size: 24px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin-bottom: 4px;
+}
+
+.stat-label {
+    color: #666666;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 500;
+}
+
+/* Enlaces de navegación */
+.nav-links {
+    text-align: center;
+    margin-bottom: 24px;
+    padding: 16px;
+    background-color: #fafafa;
+    border: 1px solid #e6e6e6;
+}
+
+.nav-link {
+    color: #1a1a1a;
+    text-decoration: underline;
+    text-decoration-color: #cccccc;
+    margin: 0 16px;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.nav-link:hover {
+    text-decoration-color: #1a1a1a;
+    color: #1a1a1a;
+}
+
+/* Títulos de secciones */
+h1 {
+    color: #1a1a1a;
+    font-size: 28px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    text-align: center;
+}
+
+h2 {
+    color: #2a2a2a;
+    font-size: 20px;
+    font-weight: 500;
+    margin: 24px 0 16px 0;
+}
+
+h3 {
+    color: #2a2a2a;
+    font-size: 16px;
+    font-weight: 500;
+    margin: 20px 0 12px 0;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .agente-container {
+        padding: 16px;
+    }
+    
+    .chat-container {
+        padding: 16px;
+        margin-bottom: 24px;
+    }
+    
+    .mensaje {
+        max-width: 90%;
+        padding: 12px;
+    }
+    
+    .consulta-form {
+        flex-direction: column;
+    }
+    
+    .consulta-btn {
+        margin-top: 8px;
+    }
+    
+    .tabs {
+        flex-wrap: wrap;
+    }
+    
+    .tab {
+        padding: 8px 16px;
+        font-size: 13px;
+    }
+    
+    .estadisticas-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .nav-links {
+        padding: 12px;
+    }
+    
+    .nav-link {
+        display: block;
+        margin: 8px 0;
+    }
+}

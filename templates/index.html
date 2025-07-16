@@ -3,92 +3,195 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Facturas Procesadas</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista de Facturas - Sistema de Facturas</title>
     <link rel="stylesheet" href="/static/css/main.css">
 </head>
 
 <body>
     <div class="container">
-        <h1>Lista de Facturas</h1>
-
-        <!-- Agregar este bloque después del h1 en tu index.html -->
-
-        <div style="margin: 20px 0; text-align: center;">
-            <a href="/agente" style="
-        display: inline-block;
-        background: linear-gradient(45deg, #007bff, #0056b3);
-        color: white;
-        padding: 12px 24px;
-        text-decoration: none;
-        border-radius: 8px;
-        font-weight: bold;
-        box-shadow: 0 4px 8px rgba(0,123,255,0.3);
-        transition: transform 0.2s ease;
-    " onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
-                🤖 Usar Agente Inteligente
-            </a>
+        <!-- Header minimalista -->
+        <div class="header-section">
+            <h1>Lista de Facturas</h1>
+            <p class="subtitle">Gestión y visualización de documentos procesados</p>
         </div>
 
-        <form action="/extract-text" method="post" enctype="multipart/form-data">
-            <input type="file" name="files" multiple>
-            <button type="submit">Subir Facturas</button>
-        </form>
-
-        <h2>Facturas procesadas</h2>
-        <!-- En templates/index.html, reemplazar la sección de la tabla: -->
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Archivo</th>
-                    <th>Número</th>
-                    <th>Razón Social</th>
-                    <th>CUIT</th>
-                    <th>Fecha Factura</th>
-                    <th>Total</th>
-                    <th>Fecha Proceso</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% if facturas %}
-                {% for factura in facturas %}
-                <tr>
-                    <td>{{ factura.id }}</td>
-                    <td><a href="/factura/{{ factura.id }}">{{ factura.filename }}</a></td>
-                    <td>{{ factura.numero_factura_formateado or factura.numero_factura or 'Sin número' }}</td>
-                    <td>{{ factura.razon_social or 'Sin datos' }}</td>
-                    <td>{{ factura.cuit_proveedor_formateado or factura.cuit_proveedor or 'Sin CUIT' }}</td>
-                    <td>
-                        {% if factura.fecha_factura_formateada and factura.fecha_factura_formateada != 'Sin fecha' and
-                        factura.fecha_factura_formateada != 'Fecha inválida' %}
-                        {{ factura.fecha_factura_formateada }}
-                        {% elif factura.fecha_factura %}
-                        {{ factura.fecha_factura }}
-                        {% else %}
-                        Sin fecha
-                        {% endif %}
-                    </td>
-                    <td>{{ factura.total_formateado or '$ 0,00' }}</td>
-                    <td>
-                        {% if factura.created_at_formateado and factura.created_at_formateado != 'Sin fecha' and
-                        factura.created_at_formateado != 'Fecha inválida' %}
-                        {{ factura.created_at_formateado }}
-                        {% elif factura.created_at %}
-                        {{ factura.created_at[:10] if factura.created_at|length > 10 else factura.created_at }}
-                        {% else %}
-                        Sin fecha
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-                {% else %}
-                <tr>
-                    <td colspan="8" style="text-align: center;">No hay facturas cargadas aún.</td>
-                </tr>
+        <!-- Navegación superior -->
+        <div class="nav-section">
+            <div class="nav-left">
+                {% if current_user %}
+                <span class="user-info">{{ current_user.username }} ({{ current_user.role.title() }})</span>
                 {% endif %}
-            </tbody>
-        </table>
+            </div>
+            <div class="nav-right">
+                <a href="/agente" class="nav-btn">
+                    🤖 Agente Inteligente
+                </a>
+                {% if current_user and "reportes:read" in permissions %}
+                <a href="/reportes" class="nav-btn">
+                    📊 Reportes
+                </a>
+                {% endif %}
+                {% if current_user and "usuarios:read" in permissions %}
+                <a href="/dashboard" class="nav-btn">
+                    📈 Dashboard
+                </a>
+                {% endif %}
+                <a href="/auth/logout" class="nav-btn logout">
+                    ↗ Salir
+                </a>
+            </div>
+        </div>
+
+        <!-- Formulario de subida -->
+        {% if current_user and "facturas:create" in permissions %}
+        <form action="/extract-text" method="post" enctype="multipart/form-data" class="upload-form">
+            <div class="form-group">
+                <label for="file-input">Subir nuevas facturas</label>
+                <div class="file-input-container">
+                    <input type="file" name="files" multiple accept=".pdf" id="file-input">
+                    <button type="submit" class="submit-btn">Procesar</button>
+                </div>
+            </div>
+        </form>
+        {% endif %}
+
+        <!-- Estadísticas rápidas -->
+        {% if facturas %}
+        <div class="stats-section">
+            <div class="stat-item">
+                <span class="stat-number">{{ facturas|length }}</span>
+                <span class="stat-label">Total Facturas</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">
+                    {% set total_sum = facturas|selectattr('total')|map(attribute='total')|sum %}
+                    {% if total_sum %}
+                    ${{ "{:,.2f}".format(total_sum).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                    {% else %}
+                    $0,00
+                    {% endif %}
+                </span>
+                <span class="stat-label">Importe Total</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">
+                    {% set proveedores_unicos = facturas|selectattr('razon_social')|map(attribute='razon_social')|unique|list|length %}
+                    {{ proveedores_unicos }}
+                </span>
+                <span class="stat-label">Proveedores</span>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Tabla de facturas -->
+        <h2>Facturas Procesadas</h2>
+        
+        {% if facturas %}
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Archivo</th>
+                        <th>Número</th>
+                        <th>Razón Social</th>
+                        <th>CUIT</th>
+                        <th>Fecha Factura</th>
+                        <th>Total</th>
+                        <th>Procesado</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for factura in facturas %}
+                    <tr>
+                        <td class="id-column">#{{ factura.id }}</td>
+                        <td class="file-column">
+                            <a href="/factura/{{ factura.id }}">{{ factura.filename }}</a>
+                        </td>
+                        <td class="number-column">
+                            {% if factura.numero_factura_formateado or factura.numero_factura %}
+                            <span class="badge">{{ factura.numero_factura_formateado or factura.numero_factura }}</span>
+                            {% else %}
+                            <span class="empty-value">Sin número</span>
+                            {% endif %}
+                        </td>
+                        <td class="company-column">
+                            {% if factura.razon_social %}
+                            <strong>{{ factura.razon_social }}</strong>
+                            {% else %}
+                            <span class="empty-value">Sin datos</span>
+                            {% endif %}
+                        </td>
+                        <td class="cuit-column">
+                            {% if factura.cuit_proveedor_formateado or factura.cuit_proveedor %}
+                            <code>{{ factura.cuit_proveedor_formateado or factura.cuit_proveedor }}</code>
+                            {% else %}
+                            <span class="empty-value">Sin CUIT</span>
+                            {% endif %}
+                        </td>
+                        <td class="date-column">
+                            {% if factura.fecha_factura_formateada and factura.fecha_factura_formateada not in ['Sin fecha', 'Fecha inválida'] %}
+                            {{ factura.fecha_factura_formateada }}
+                            {% elif factura.fecha_factura %}
+                            {{ factura.fecha_factura }}
+                            {% else %}
+                            <span class="empty-value">Sin fecha</span>
+                            {% endif %}
+                        </td>
+                        <td class="amount-column">
+                            {% if factura.total_formateado %}
+                            <strong>{{ factura.total_formateado }}</strong>
+                            {% else %}
+                            <span class="empty-value">$ 0,00</span>
+                            {% endif %}
+                        </td>
+                        <td class="processed-column">
+                            {% if factura.created_at_formateado and factura.created_at_formateado not in ['Sin fecha', 'Fecha inválida'] %}
+                            {{ factura.created_at_formateado }}
+                            {% elif factura.created_at %}
+                            {{ factura.created_at[:10] if factura.created_at|length > 10 else factura.created_at }}
+                            {% else %}
+                            <span class="empty-value">Sin fecha</span>
+                            {% endif %}
+                        </td>
+                        <td class="status-column">
+                            {% if factura.razon_social and factura.total %}
+                            <span class="estado ok">Completo</span>
+                            {% elif factura.razon_social or factura.total %}
+                            <span class="estado alerta">Parcial</span>
+                            {% else %}
+                            <span class="estado error">Incompleto</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">📄</div>
+            <h3>No hay facturas cargadas</h3>
+            <p>Comienza subiendo tus primeros documentos PDF</p>
+            {% if current_user and "facturas:create" in permissions %}
+            <button class="empty-action-btn" onclick="document.querySelector('#file-input').click()">
+                Subir Primera Factura
+            </button>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Información de errores -->
+        {% if error %}
+        <div class="error-message">
+            <strong>Error:</strong> {{ error }}
+        </div>
+        {% endif %}
     </div>
+
+    <script src="/static/js/index.js"></script>
 </body>
 
 </html>
