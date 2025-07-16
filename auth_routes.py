@@ -92,26 +92,25 @@ async def login_form(
         # Guardar refresh token
         store_refresh_token(db, user["id"], refresh_token)
         
-        # Crear respuesta con redirección
-        response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
-        
+        # Crear respuesta con redirección AL DASHBOARD
+        response = RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+
         # Establecer cookies seguras
         response.set_cookie(
             key="access_token",
             value=f"Bearer {access_token}",
             httponly=True,
             max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            secure=False,  # Cambiar a True en producción con HTTPS
-            samesite="lax"
-        )
+            secure=False,
+            samesite="lax")
+        
         response.set_cookie(
             key="refresh_token",
             value=refresh_token,
             httponly=True,
             max_age=7 * 24 * 60 * 60,  # 7 días
-            secure=False,  # Cambiar a True en producción
-            samesite="lax"
-        )
+            secure=False,
+            samesite="lax")
         
         print("🔍 DEBUG: Respuesta de redirección creada")
         return response

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reportes - Sistema de Facturas</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+
+<body class="bg-light">
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-chart-bar me-2"></i>Reportes del Sistema
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/dashboard">
+                    <i class="fas fa-arrow-left me-1"></i>Volver al Dashboard
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Información del usuario -->
+        <div class="user-info">
+            <div class="row align-items-center">
+                <div class="col">
+                    <h4 class="mb-1">
+                        <i class="fas fa-chart-line me-2"></i>
+                        Reportes y Análisis
+                    </h4>
+                    <p class="mb-0">
+                        <span class="badge bg-light text-dark">{{ current_user.role.title() }}</span>
+                        <span class="ms-2">{{ estadisticas.total_facturas }} facturas analizadas</span>
+                    </p>
+                </div>
+                <div class="col-auto">
+                    <i class="fas fa-chart-bar fa-2x opacity-50"></i>
+                </div>
+            </div>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-danger" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>{{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Métricas Generales -->
+        <div class="row mb-4">
+            <div class="col-md-4 mb-3">
+                <div class="card dashboard-card bg-primary text-white">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <h5 class="card-title">Total Facturas</h5>
+                                <h2 class="mb-0">{{ estadisticas.total_facturas }}</h2>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-file-invoice stat-icon"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-3">
+                <div class="card dashboard-card bg-success text-white">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <h5 class="card-title">Importe Total</h5>
+                                <h2 class="mb-0">${{ estadisticas.importe_formateado }}</h2>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-dollar-sign stat-icon"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4 mb-3">
+                <div class="card dashboard-card bg-info text-white">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <h5 class="card-title">Proveedores</h5>
+                                <h2 class="mb-0">{{ estadisticas.total_proveedores }}</h2>
+                            </div>
+                            <div class="col-auto">
+                                <i class="fas fa-building stat-icon"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tarjetas de Reportes -->
+        <div class="row">
+            <div class="col-12">
+                <h3 class="mb-4">
+                    <i class="fas fa-chart-pie me-2"></i>Reportes Disponibles
+                </h3>
+            </div>
+
+            <!-- Reporte 1: Facturas por Mes -->
+            <div class="col-md-6 mb-4">
+                <div class="card dashboard-card">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <h5 class="card-title">
+                                    <i class="fas fa-calendar-alt me-2 text-primary"></i>
+                                    Facturas por Mes
+                                </h5>
+                                <p class="card-text text-muted">
+                                    Visualiza la evolución mensual de tus facturas
+                                </p>
+                            </div>
+                            <div class="col-auto">
+                                <button class="btn btn-primary" onclick="cargarReporte('facturas-mes')">
+                                    <i class="fas fa-chart-bar me-2"></i>Ver Reporte
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reporte 2: Top Proveedores -->
+            <div class="col-md-6 mb-4">
+                <div class="card dashboard-card">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <h5 class="card-title">
+                                    <i class="fas fa-building me-2 text-success"></i>
+                                    Top Proveedores
+                                </h5>
+                                <p class="card-text text-muted">
+                                    Principales proveedores por volumen de facturación
+                                </p>
+                            </div>
+                            <div class="col-auto">
+                                <button class="btn btn-success" onclick="cargarReporte('top-proveedores')">
+                                    <i class="fas fa-chart-line me-2"></i>Ver Reporte
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reporte 3: Distribución por Montos -->
+            <div class="col-md-6 mb-4">
+                <div class="card dashboard-card">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <h5 class="card-title">
+                                    <i class="fas fa-coins me-2 text-warning"></i>
+                                    Distribución por Montos
+                                </h5>
+                                <p class="card-text text-muted">
+                                    Análisis de facturas por rangos de importes
+                                </p>
+                            </div>
+                            <div class="col-auto">
+                                <button class="btn btn-warning" onclick="cargarReporte('distribucion-montos')">
+                                    <i class="fas fa-chart-pie me-2"></i>Ver Reporte
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reporte 4: Evolución Temporal -->
+            <div class="col-md-6 mb-4">
+                <div class="card dashboard-card">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <h5 class="card-title">
+                                    <i class="fas fa-chart-area me-2 text-info"></i>
+                                    Evolución Temporal
+                                </h5>
+                                <p class="card-text text-muted">
+                                    Tendencias de facturación a lo largo del tiempo
+                                </p>
+                            </div>
+                            <div class="col-auto">
+                                <button class="btn btn-info" onclick="cargarReporte('evolucion-temporal')">
+                                    <i class="fas fa-chart-area me-2"></i>Ver Reporte
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Área para mostrar reportes -->
+        <div id="reporte-container" class="mt-4" style="display: none;">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0" id="reporte-titulo">Cargando reporte...</h5>
+                </div>
+                <div class="card-body">
+                    <div id="reporte-contenido">
+                        <div class="text-center">
+                            <i class="fas fa-spinner fa-spin fa-2x"></i>
+                            <p class="mt-2">Cargando datos...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/reportes.js"></script>
+</body>
+
+</html>
