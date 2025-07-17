@@ -45,102 +45,606 @@
     font-weight: 500;
 }
 
-/* Cards de estadísticas con colores monocromáticos */
+/* Cards de estadísticas con colores monocromáticos - CORREGIDO */
 .bg-primary {
-    background-color: #2a2a2a !important;
+    background-color: #1a1a1a !important;
+    color: #ffffff !important;
 }
 
 .bg-success {
-    background-color: #404040 !important;
+    background-color: #2a2a2a !important;
+    color: #ffffff !important;
 }
 
 .bg-info {
-    background-color: #666666 !important;
+    background-color: #404040 !important;
+    color: #ffffff !important;
 }
 
 .bg-warning {
-    background-color: #808080 !important;
+    background-color: #666666 !important;
+    color: #ffffff !important;
 }
 
-/* Botones con estilo minimalista */
+/* IMPORTANTE: Forzar colores de texto en elementos específicos */
+.bg-primary,
+.bg-primary .card-body,
+.bg-primary .card-title,
+.bg-primary .card-text,
+.bg-primary h1,
+.bg-primary h2,
+.bg-primary h3,
+.bg-primary h4,
+.bg-primary h5,
+.bg-primary h6,
+.bg-primary p,
+.bg-primary span,
+.bg-primary div {
+    color: #ffffff !important;
+}
+
+.bg-success,
+.bg-success .card-body,
+.bg-success .card-title,
+.bg-success .card-text,
+.bg-success h1,
+.bg-success h2,
+.bg-success h3,
+.bg-success h4,
+.bg-success h5,
+.bg-success h6,
+.bg-success p,
+.bg-success span,
+.bg-success div {
+    color: #ffffff !important;
+}
+
+.bg-info,
+.bg-info .card-body,
+.bg-info .card-title,
+.bg-info .card-text,
+.bg-info h1,
+.bg-info h2,
+.bg-info h3,
+.bg-info h4,
+.bg-info h5,
+.bg-info h6,
+.bg-info p,
+.bg-info span,
+.bg-info div {
+    color: #ffffff !important;
+}
+
+.bg-warning,
+.bg-warning .card-body,
+.bg-warning .card-title,
+.bg-warning .card-text,
+.bg-warning h1,
+.bg-warning h2,
+.bg-warning h3,
+.bg-warning h4,
+.bg-warning h5,
+.bg-warning h6,
+.bg-warning p,
+.bg-warning span,
+.bg-warning div {
+    color: #ffffff !important;
+}
+
+/* Iconos stat específicos */
+.stat-icon {
+    font-size: 2rem !important;
+    opacity: 0.8 !important;
+}
+
+.bg-primary .stat-icon,
+.bg-success .stat-icon,
+.bg-info .stat-icon,
+.bg-warning .stat-icon {
+    color: #ffffff !important;
+    opacity: 0.8 !important;
+}
+
+/* Cards sin color específico */
+.card:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning) .stat-icon {
+    color: #666666 !important;
+    opacity: 0.6 !important;
+}
+
+/* Botones con estilo minimalista - Sobrescribir Bootstrap */
+.btn {
+    border-radius: 0 !important; /* Eliminar bordes redondeados */
+    font-weight: 500;
+    padding: 12px 24px !important;
+    font-size: 14px !important;
+    transition: all 0.15s ease;
+}
+
 .btn-outline-primary {
-    color: #1a1a1a;
-    border-color: #cccccc;
-    background-color: #ffffff;
+    color: #1a1a1a !important;
+    border-color: #cccccc !important;
+    background-color: #ffffff !important;
     font-weight: 500;
 }
 
 .btn-outline-primary:hover {
-    color: #ffffff;
-    background-color: #1a1a1a;
-    border-color: #1a1a1a;
+    color: #ffffff !important;
+    background-color: #1a1a1a !important;
+    border-color: #1a1a1a !important;
 }
 
 .btn-outline-success {
-    color: #2a2a2a;
-    border-color: #cccccc;
-    background-color: #ffffff;
+    color: #2a2a2a !important;
+    border-color: #cccccc !important;
+    background-color: #ffffff !important;
     font-weight: 500;
 }
 
 .btn-outline-success:hover {
-    color: #ffffff;
-    background-color: #2a2a2a;
-    border-color: #2a2a2a;
+    color: #ffffff !important;
+    background-color: #2a2a2a !important;
+    border-color: #2a2a2a !important;
 }
 
 .btn-outline-info {
-    color: #404040;
-    border-color: #cccccc;
-    background-color: #ffffff;
+    color: #404040 !important;
+    border-color: #cccccc !important;
+    background-color: #ffffff !important;
     font-weight: 500;
 }
 
 .btn-outline-info:hover {
-    color: #ffffff;
-    background-color: #404040;
-    border-color: #404040;
+    color: #ffffff !important;
+    background-color: #404040 !important;
+    border-color: #404040 !important;
 }
 
 .btn-outline-warning {
-    color: #666666;
-    border-color: #cccccc;
-    background-color: #ffffff;
+    color: #666666 !important;
+    border-color: #cccccc !important;
+    background-color: #ffffff !important;
     font-weight: 500;
 }
 
 .btn-outline-warning:hover {
-    color: #ffffff;
-    background-color: #666666;
-    border-color: #666666;
+    color: #ffffff !important;
+    background-color: #666666 !important;
+    border-color: #666666 !important;
 }
 
-/* Cards con diseño minimalista */
-.card {
-    border: 1px solid #e6e6e6;
-    transition: box-shadow 0.15s ease;
-    background-color: #ffffff;
-}
-
-.card:hover {
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-}
-
-.card-header {
-    background-color: #fafafa;
-    border-bottom: 1px solid #e6e6e6;
+.btn-outline-secondary {
+    color: #666666 !important;
+    border-color: #cccccc !important;
+    background-color: #ffffff !important;
     font-weight: 500;
 }
 
-.card-body {
-    padding: 24px;
+.btn-outline-secondary:hover {
+    color: #ffffff !important;
+    background-color: #666666 !important;
+    border-color: #666666 !important;
 }
 
-/* Badges minimalistas */
+/* Cards con diseño minimalista - Sobrescribir Bootstrap */
+.card {
+    border: 1px solid #e6e6e6 !important;
+    border-radius: 0 !important; /* Eliminar bordes redondeados */
+    transition: box-shadow 0.15s ease;
+    background-color: #ffffff !important;
+    box-shadow: none !important; /* Eliminar sombra por defecto */
+}
+
+.card:hover {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06) !important;
+}
+
+.card-header {
+    background-color: #fafafa !important;
+    border-bottom: 1px solid #e6e6e6 !important;
+    border-radius: 0 !important; /* Eliminar bordes redondeados */
+    font-weight: 500;
+    padding: 16px 24px !important;
+}
+
+.card-body {
+    padding: 24px !important;
+}
+
+.card-footer {
+    background-color: #fafafa !important;
+    border-top: 1px solid #e6e6e6 !important;
+    border-radius: 0 !important; /* Eliminar bordes redondeados */
+}
+
+/* Badges minimalistas - Sobrescribir Bootstrap */
+.badge {
+    border-radius: 0 !important; /* Eliminar bordes redondeados */
+    font-weight: 500 !important;
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
 .badge.bg-light {
     background-color: #f0f0f0 !important;
     color: #1a1a1a !important;
-    border: 1px solid #e6e6e6;
+    border: 1px solid #e6e6e6 !important;
+}
+
+.badge.bg-success {
+    background-color: #2a2a2a !important;
+    color: #ffffff !important;
+}
+
+.badge.bg-warning {
+    background-color: #666666 !important;
+    color: #ffffff !important;
+}
+
+.badge.bg-secondary {
+    background-color: #999999 !important;
+    color: #ffffff !important;
+}
+
+/* Alertas minimalistas - Sobrescribir Bootstrap */
+.alert {
+    border-radius: 0 !important; /* Eliminar bordes redondeados */
+    border: 1px solid #e6e6e6 !important;
+    background-color: #fafafa !important;
+    color: #2a2a2a !important;
+    padding: 16px 24px !important;
+    margin-bottom: 24px;
+}
+
+.alert-danger {
+    background-color: #f8f8f8 !important;
+    border-color: #e6e6e6 !important;
+    color: #666666 !important;
+}
+
+.alert-success {
+    background-color: #f8f8f8 !important;
+    border-color: #e6e6e6 !important;
+    color: #2a2a2a !important;
+}
+
+.alert-info {
+    background-color: #f8f8f8 !important;
+    border-color: #e6e6e6 !important;
+    color: #404040 !important;
+}
+
+.alert-warning {
+    background-color: #f5f5f5 !important;
+    border-color: #e6e6e6 !important;
+    color: #666666 !important;
+}
+
+/* Elementos de formulario minimalistas */
+.form-control {
+    border-radius: 0 !important; /* Eliminar bordes redondeados */
+    border: 1px solid #cccccc !important;
+    background-color: #ffffff !important;
+    color: #2a2a2a !important;
+    font-size: 14px !important;
+    padding: 12px !important;
+}
+
+.form-control:focus {
+    border-color: #1a1a1a !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.form-select {
+    border-radius: 0 !important; /* Eliminar bordes redondeados */
+    border: 1px solid #cccccc !important;
+    background-color: #ffffff !important;
+    color: #2a2a2a !important;
+    font-size: 14px !important;
+    padding: 12px !important;
+}
+
+.form-select:focus {
+    border-color: #1a1a1a !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.form-label {
+    color: #2a2a2a !important;
+    font-weight: 500 !important;
+    font-size: 13px !important;
+    margin-bottom: 6px !important;
+}
+
+/* Dropdown minimalista */
+.dropdown-menu {
+    border-radius: 0 !important; /* Eliminar bordes redondeados */
+    border: 1px solid #e6e6e6 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+    background-color: #ffffff !important;
+}
+
+.dropdown-item {
+    color: #2a2a2a !important;
+    font-size: 14px !important;
+    padding: 8px 16px !important;
+    transition: background-color 0.15s ease;
+}
+
+.dropdown-item:hover {
+    background-color: #f5f5f5 !important;
+    color: #1a1a1a !important;
+}
+
+.dropdown-divider {
+    border-color: #e6e6e6 !important;
+    margin: 8px 0 !important;
+}
+
+/* Progress bars minimalistas */
+.progress {
+    border-radius: 0 !important; /* Eliminar bordes redondeados */
+    background-color: #f0f0f0 !important;
+    height: 4px !important;
+    border: none !important;
+}
+
+.progress-bar {
+    border-radius: 0 !important; /* Eliminar bordes redondeados */
+    transition: width 0.3s ease;
+}
+
+.progress-bar.bg-primary {
+    background-color: #1a1a1a !important;
+}
+
+.progress-bar.bg-success {
+    background-color: #2a2a2a !important;
+}
+
+.progress-bar.bg-warning {
+    background-color: #666666 !important;
+}
+
+.progress-bar.bg-info {
+    background-color: #404040 !important;
+}
+
+/* Modales minimalistas (si se usan) */
+.modal-content {
+    border-radius: 0 !important; /* Eliminar bordes redondeados */
+    border: 1px solid #e6e6e6 !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1) !important;
+}
+
+.modal-header {
+    border-bottom: 1px solid #e6e6e6 !important;
+    background-color: #fafafa !important;
+    padding: 16px 24px !important;
+}
+
+.modal-body {
+    padding: 24px !important;
+}
+
+.modal-footer {
+    border-top: 1px solid #e6e6e6 !important;
+    background-color: #fafafa !important;
+    padding: 16px 24px !important;
+}
+
+/* Navbar minimalista - Sobrescribir Bootstrap */
+.navbar {
+    border-radius: 0 !important; /* Eliminar bordes redondeados */
+    padding: 12px 0 !important;
+}
+
+.navbar-dark {
+    background-color: #1a1a1a !important;
+    border-bottom: 1px solid #333333;
+}
+
+.navbar-dark .navbar-brand,
+.navbar-dark .nav-link {
+    color: #ffffff !important;
+    font-weight: 400;
+    transition: color 0.15s ease;
+}
+
+.navbar-dark .nav-link:hover {
+    color: #cccccc !important;
+}
+
+.navbar-toggler {
+    border-radius: 0 !important; /* Eliminar bordes redondeados */
+    border: 1px solid #666666 !important;
+    padding: 8px 12px !important;
+}
+
+.navbar-toggler:focus {
+    box-shadow: none !important;
+}
+
+/* Tablas minimalistas - Sobrescribir Bootstrap */
+.table {
+    border-collapse: collapse !important;
+    background-color: #ffffff !important;
+    border: 1px solid #e6e6e6 !important;
+    margin-bottom: 0 !important;
+}
+
+.table th {
+    background-color: #fafafa !important;
+    border-bottom: 2px solid #e6e6e6 !important;
+    color: #1a1a1a !important;
+    font-weight: 500 !important;
+    padding: 12px !important;
+    border-top: none !important;
+}
+
+.table td {
+    border-bottom: 1px solid #f0f0f0 !important;
+    border-top: none !important;
+    color: #2a2a2a !important;
+    font-size: 14px !important;
+    padding: 12px !important;
+}
+
+.table-striped > tbody > tr:nth-of-type(odd) > td {
+    background-color: #fafafa !important;
+}
+
+.table-hover tbody tr:hover {
+    background-color: #f5f5f5 !important;
+}
+
+.table-responsive {
+    border: none !important;
+    border-radius: 0 !important;
+}
+
+/* Paginación minimalista */
+.pagination {
+    margin-bottom: 0 !important;
+}
+
+.page-link {
+    border-radius: 0 !important; /* Eliminar bordes redondeados */
+    border: 1px solid #e6e6e6 !important;
+    color: #2a2a2a !important;
+    background-color: #ffffff !important;
+    padding: 8px 16px !important;
+    font-size: 14px !important;
+    margin-left: -1px !important;
+}
+
+.page-link:hover {
+    background-color: #f5f5f5 !important;
+    border-color: #e6e6e6 !important;
+    color: #1a1a1a !important;
+}
+
+.page-item.active .page-link {
+    background-color: #1a1a1a !important;
+    border-color: #1a1a1a !important;
+    color: #ffffff !important;
+}
+
+.page-item.disabled .page-link {
+    background-color: #f8f8f8 !important;
+    border-color: #e6e6e6 !important;
+    color: #cccccc !important;
+}
+
+/* Breadcrumbs minimalistas */
+.breadcrumb {
+    background-color: #fafafa !important;
+    border-radius: 0 !important; /* Eliminar bordes redondeados */
+    padding: 12px 16px !important;
+    margin-bottom: 24px !important;
+    border: 1px solid #e6e6e6 !important;
+}
+
+.breadcrumb-item {
+    color: #666666 !important;
+    font-size: 14px !important;
+}
+
+.breadcrumb-item.active {
+    color: #2a2a2a !important;
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+    color: #cccccc !important;
+}
+
+/* Spinner/Loading minimalista */
+.spinner-border {
+    border-color: #e6e6e6 !important;
+    border-right-color: #1a1a1a !important;
+}
+
+.spinner-border-sm {
+    width: 1rem !important;
+    height: 1rem !important;
+    border-width: 0.1em !important;
+}
+
+/* Tooltips minimalistas */
+.tooltip {
+    font-size: 12px !important;
+}
+
+.tooltip-inner {
+    background-color: #1a1a1a !important;
+    border-radius: 0 !important; /* Eliminar bordes redondeados */
+    color: #ffffff !important;
+    padding: 8px 12px !important;
+    max-width: 200px !important;
+}
+
+.tooltip .tooltip-arrow {
+    border-bottom-color: #1a1a1a !important;
+}
+
+/* Collapse minimalista */
+.collapse {
+    border-radius: 0 !important;
+}
+
+.accordion-button {
+    border-radius: 0 !important; /* Eliminar bordes redondeados */
+    background-color: #fafafa !important;
+    color: #2a2a2a !important;
+    border: 1px solid #e6e6e6 !important;
+    padding: 16px 24px !important;
+    font-weight: 500 !important;
+}
+
+.accordion-button:focus {
+    box-shadow: none !important;
+    border-color: #1a1a1a !important;
+}
+
+.accordion-button:not(.collapsed) {
+    background-color: #f0f0f0 !important;
+    color: #1a1a1a !important;
+}
+
+/* List groups minimalistas */
+.list-group {
+    border-radius: 0 !important; /* Eliminar bordes redondeados */
+}
+
+.list-group-item {
+    border-radius: 0 !important; /* Eliminar bordes redondeados */
+    border: 1px solid #e6e6e6 !important;
+    color: #2a2a2a !important;
+    background-color: #ffffff !important;
+    padding: 12px 16px !important;
+    margin-bottom: -1px !important;
+}
+
+.list-group-item:hover {
+    background-color: #f5f5f5 !important;
+}
+
+.list-group-item.active {
+    background-color: #1a1a1a !important;
+    border-color: #1a1a1a !important;
+    color: #ffffff !important;
+}
+
+/* Fuentes y texto consistentes */
+.text-muted {
+    color: #666666 !important;
+}
+
+.text-primary {
+    color: #1a1a1a !important;
 }
 
 .text-success {
@@ -151,66 +655,108 @@
     color: #666666 !important;
 }
 
-/* Navbar minimalista */
-.navbar-dark {
-    background-color: #1a1a1a !important;
+.text-warning {
+    color: #666666 !important;
 }
 
-.navbar-dark .navbar-brand,
-.navbar-dark .nav-link {
-    color: #ffffff !important;
-    font-weight: 400;
+.text-info {
+    color: #404040 !important;
 }
 
-.navbar-dark .nav-link:hover {
+.text-secondary {
+    color: #999999 !important;
+}
+
+.text-dark {
+    color: #1a1a1a !important;
+}
+
+.text-light {
     color: #cccccc !important;
 }
 
-.dropdown-menu {
-    border: 1px solid #e6e6e6;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+/* REGLAS UNIVERSALES para asegurar visibilidad */
+.text-white,
+.text-white * {
+    color: #ffffff !important;
 }
 
-.dropdown-item {
-    color: #2a2a2a;
-    font-size: 14px;
-    padding: 8px 16px;
+.text-dark,
+.text-dark * {
+    color: #1a1a1a !important;
 }
 
-.dropdown-item:hover {
-    background-color: #f5f5f5;
-    color: #1a1a1a;
+/* Forzar visibilidad en contenedores de estadísticas */
+.dashboard-card .card-body * {
+    color: inherit !important;
 }
 
-.dropdown-divider {
-    border-color: #e6e6e6;
+.dashboard-card.bg-primary .card-body * {
+    color: #ffffff !important;
 }
 
-/* Alertas minimalistas */
-.alert {
-    border: 1px solid #e6e6e6;
-    background-color: #fafafa;
-    color: #2a2a2a;
+.dashboard-card.bg-success .card-body * {
+    color: #ffffff !important;
 }
 
-.alert-danger {
-    background-color: #f8f8f8;
-    border-color: #e6e6e6;
-    color: #666666;
+.dashboard-card.bg-info .card-body * {
+    color: #ffffff !important;
 }
 
-.alert-success {
-    background-color: #f8f8f8;
-    border-color: #e6e6e6;
-    color: #2a2a2a;
+.dashboard-card.bg-warning .card-body * {
+    color: #ffffff !important;
 }
 
-/* Iconos minimalistas */
-.fas, .far {
-    opacity: 0.7;
+/* Asegurar que elementos con clases específicas sean visibles */
+.card.text-white,
+.card.text-white *,
+.card.text-white .card-body,
+.card.text-white .card-body * {
+    color: #5a5a5a !important;
 }
 
-/* Responsive design */
+/* Sobreescribir cualquier regla de Bootstrap que pueda estar interfiriendo */
+.card.bg-primary .card-body,
+.card.bg-success .card-body,
+.card.bg-info .card-body,
+.card.bg-warning .card-body {
+    color: #ffffff !important;
+}
+
+/* Números y elementos de estadísticas */
+.stat-number {
+    font-size: 24px !important;
+    font-weight: 600 !important;
+    color: inherit !important;
+}
+
+.stat-label {
+    font-size: 12px !important;
+    color: inherit !important;
+    opacity: 0.9 !important;
+}
+
+/* Asegurar que los iconos FontAwesome sean visibles */
+.fas,
+.far,
+.fab,
+.fal {
+    color: inherit !important;
+}
+
+/* Override específico para elementos dentro de cards de colores */
+.bg-primary .fas,
+.bg-primary .far,
+.bg-success .fas,
+.bg-success .far,
+.bg-info .fas,
+.bg-info .far,
+.bg-warning .fas,
+.bg-warning .far {
+    color: #ffffff !important;
+}
+
+/* Responsive design mejorado */
 @media (max-width: 768px) {
     .dashboard-card {
         margin-bottom: 16px;
@@ -222,6 +768,36 @@
     }
     
     .card-body {
-        padding: 20px;
+        padding: 16px !important;
+    }
+    
+    .navbar-nav {
+        text-align: center;
+    }
+    
+    .dropdown-menu {
+        border-radius: 0 !important;
+        width: 100%;
+    }
+    
+    .table {
+        font-size: 13px !important;
+    }
+    
+    .table th,
+    .table td {
+        padding: 8px !important;
+    }
+    
+    .stat-icon {
+        font-size: 1.5rem !important;
+    }
+    
+    .card-title {
+        font-size: 14px !important;
+    }
+    
+    .card-text {
+        font-size: 12px !important;
     }
 }
