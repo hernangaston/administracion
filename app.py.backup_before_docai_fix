@@ -89,31 +89,6 @@ def init_db_tables():
     """Usar la nueva función centralizada"""
     init_database()
 
-def limpiar_cuit(cuit_raw):
-    """
-    Limpia y normaliza un CUIT extraído del PDF
-    """
-    if not cuit_raw:
-        return ""
-    
-    # Convertir a string y limpiar
-    cuit_str = str(cuit_raw).strip()
-    
-    # Remover caracteres no numéricos (guiones, espacios, etc.)
-    cuit_limpio = ''.join(filter(str.isdigit, cuit_str))
-    
-    # Validar longitud (CUIT debe tener 11 dígitos)
-    if len(cuit_limpio) == 11:
-        return cuit_limpio
-    elif len(cuit_limpio) > 11:
-        # Si tiene más de 11 dígitos, tomar los primeros 11
-        logger.warning(f"CUIT con más de 11 dígitos: '{cuit_raw}', tomando primeros 11")
-        return cuit_limpio[:11]
-    else:
-        # Si tiene menos de 11 dígitos, devolver como está pero avisar
-        logger.warning(f"CUIT con formato incompleto: '{cuit_raw}' ({len(cuit_limpio)} dígitos)")
-        return cuit_limpio
-
 def mapear_entidades_flexibles(entities_raw):
     mapeo_entidades = {
         'supplier_name': ['proveedor_nombre', 'supplier_name', 'vendor_name', 'company_name'],
