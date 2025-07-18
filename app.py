@@ -430,46 +430,42 @@ def startup_enhanced():
 # === INCLUIR EL ROUTER DE AUTENTICACIÓN ===
 app.include_router(auth_router)
 
-def process_pdf_secure(file_path: str) -> Dict:
+def process_pdf(file_path: str) -> Dict:
     """
-    Versión segura del procesamiento de PDF con validación completa
+    Versión corregida del procesamiento de PDF - SIN OcrConfig para INVOICE_PROCESSOR
     """
+    logger.info(f"Iniciando procesamiento de PDF: {file_path}")
+    
     try:
-        # 1. VALIDACIÓN EXHAUSTIVA DEL ARCHIVO
-        validation_result = PDFValidator.validar_archivo_completo(file_path)
-        
-        if not validation_result['es_valido']:
-            error_msg = '; '.join(validation_result['errores'])
-            logger.error(f"Archivo PDF inválido: {error_msg}")
-            return {
-                "text": "",
-                "entities": {},
-                "entities_raw": {},
-                "pages_processed": 0,
-                "validation_errors": validation_result['errores'],
-                "validation_warnings": validation_result.get('warnings', [])
-            }
-        
-        # 2. LOG DE VALIDACIÓN EXITOSA
-        resumen = PDFValidator.obtener_resumen_validacion(validation_result)
-        logger.info(f"Archivo validado: {resumen}")
-        
-        # 3. PROCESAMIENTO CON DOCUMENT AI (existente pero con mejor manejo de errores)
+        # 1. Validación del archivo (si tienes el validador de Fase 2)
+        try:
+            from app_modules.utils.file_validator import PDFValidator
+            validation_result = PDFValidator.validar_archivo_completo(file_path)
+            
+            if not validation_result['es_valido']:
+                error_msg = '; '.join(validation_result['errores'])
+                logger.error(f"Archivo PDF inválido: {error_msg}")
+                return {
+                    "text": "",
+                    "entities": {},
+                    "entities_raw": {},
+                    "pages_processed": 0,
+                    "validation_errors": validation_result['errores']
+                }
+        except ImportError:
+            # Si no tienes el validador de Fase 2, continuar sin validación
+            logger.info("Validador de archivos no disponible, continuando...")
+            pass
+
+        # 2. Procesamiento con Document AI - CONFIGURACIÓN CORREGIDA
         with open(file_path, "rb") as f:
             file_content = f.read()
             
-            # Configurar opciones de procesamiento más seguras
+            # CONFIGURACIÓN SIMPLIFICADA SIN OcrConfig
             selector = documentai.ProcessOptions.IndividualPageSelector(pages=[1])
             options = documentai.ProcessOptions(
-                individual_page_selector=selector,
-                # Agregar límites de procesamiento
-                ocr_config=documentai.OcrConfig(
-                    enable_native_pdf_parsing=True,
-                    premium_features=documentai.OcrConfig.PremiumFeatures(
-                        enable_math_ocr=False,  # Desactivar features no necesarias
-                        enable_selection_mark_detection=False
-                    )
-                )
+                individual_page_selector=selector
+                # ❌ REMOVIDO: ocr_config (no compatible con INVOICE_PROCESSOR)
             )
             
             request = documentai.ProcessRequest(
@@ -482,47 +478,49 @@ def process_pdf_secure(file_path: str) -> Dict:
                 process_options=options
             )
             
-            # Ejecutar con timeout y manejo de errores mejorado
-            try:
-                result = client.process_document(request=request)
-                doc = result.document
-                
-                # Validar respuesta de Document AI
-                if not doc:
-                    raise Exception("Document AI no devolvió resultados")
-                
-                entities_raw = {e.type_: e.mention_text for e in doc.entities}
-                
-                # 4. VALIDACIÓN DE DATOS EXTRAÍDOS
-                entities_mapped = mapear_entidades_flexibles(entities_raw)
-                
-                # Validar CUIT si fue extraído
-                if entities_mapped.get('supplier_tax_id'):
-                    cuit = entities_mapped['supplier_tax_id']
-                    if not validar_cuit_completo(cuit):
-                        logger.warning(f"CUIT extraído '{cuit}' no es válido")
-                        entities_mapped['supplier_tax_id_warning'] = 'CUIT no válido'
-                
-                return {
-                    "text": doc.text,
-                    "entities": entities_mapped,
-                    "entities_raw": entities_raw,
-                    "pages_processed": len(doc.pages) if doc.pages else 0,
-                    "validation_metadata": validation_result['metadata']
-                }
-                
-            except Exception as doc_ai_error:
-                logger.error(f"Error en Document AI: {doc_ai_error}")
-                return {
-                    "text": "",
-                    "entities": {},
-                    "entities_raw": {},
-                    "pages_processed": 0,
-                    "document_ai_error": str(doc_ai_error)
-                }
-                
+            # Ejecutar procesamiento
+            result = client.process_document(request=request)
+            doc = result.document
+            
+            if not doc:
+                raise Exception("Document AI no devolvió resultados")
+            
+            logger.info(f"Document AI procesó {len(doc.pages)} páginas exitosamente")
+
+        # 3. Extracción de entidades
+        entities_raw = {e.type_: e.mention_text for e in doc.entities}
+        entities_mapped = mapear_entidades_flexibles(entities_raw)
+        
+        # 4. Validaciones básicas (sin dependencias de Fase 2)
+        warnings = []
+        
+        # Validar CUIT si fue extraído
+        if entities_mapped.get('supplier_tax_id'):
+            cuit = entities_mapped['supplier_tax_id']
+            # Validación básica de CUIT
+            cuit_limpio = ''.join(filter(str.isdigit, cuit))
+            if len(cuit_limpio) != 11:
+                warnings.append(f"CUIT '{cuit}' no tiene 11 dígitos")
+        
+        # Validar montos básicos
+        for field in ['total_amount', 'net_amount']:
+            if entities_mapped.get(field):
+                try:
+                    float(str(entities_mapped[field]).replace(',', '.').replace('$', ''))
+                except ValueError:
+                    warnings.append(f"Monto {field} con formato inválido")
+        
+        return {
+            "text": doc.text,
+            "entities": entities_mapped,
+            "entities_raw": entities_raw,
+            "pages_processed": len(doc.pages) if doc.pages else 0,
+            "validation_warnings": warnings,
+            "processing_success": True
+        }
+        
     except Exception as e:
-        logger.error(f"Error procesando PDF: {e}")
+        logger.error(f"Error procesando PDF {file_path}: {e}")
         return {
             "text": "",
             "entities": {},
@@ -711,7 +709,7 @@ async def extract_text_from_pdfs_secure(
                 temp_path = temp_file.name
             
             # 3. PROCESAMIENTO SEGURO
-            extracted_data = process_pdf_secure(temp_path)
+            extracted_data = process_pdf(temp_path)
             
             # 4. VERIFICAR ERRORES DE PROCESAMIENTO
             if extracted_data.get("validation_errors"):
