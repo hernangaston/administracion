@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 from app_modules.core.config import settings, setup_google_credentials
 from app_modules.core.database import get_db, init_database
 from app_modules.utils.formatters import formatear_moneda
+
 import uuid
 import time
 from contextlib import asynccontextmanager
@@ -27,20 +28,15 @@ from contextlib import asynccontextmanager
 # Nuevos sistemas de Fase 2
 from app_modules.core.logging_config import (
     setup_logging, get_logger, get_security_logger, get_audit_logger,
-    log_security_event, log_api_request, TimingContext, 
-    set_request_context, clear_request_context
+    log_security_event, log_api_request, TimingContext, set_request_context, clear_request_context
 )
 
 from app_modules.core.error_handling import (
-    ErrorCode, ErrorHandler, FacturasException, ValidationError, DatabaseError,
+    ErrorHandler, FacturasException, ValidationError, DatabaseError,
     FileProcessingError, DocumentAIError, DataValidator, handle_errors
 )
 
 from app_modules.utils.date_utils import DateFormatter, FechaFactura
-
-from app_modules.core.cache_system import (
-    setup_cache, get_cache, cached, FacturasCacheManager
-)
 
 from parser_factura import guardar_factura_en_db
 
@@ -270,68 +266,7 @@ def get_db():
         db.close()
 
 @app.on_event("startup")
-def startup_enhanced():
-    """Configuración mejorada de inicio con sistemas unificados"""
-    
-    # 1. Configurar sistema de logging
-    setup_logging()
-    app_logger = get_logger("startup")
-    security_logger = get_security_logger()
-    
-    app_logger.info("🚀 Iniciando sistema de facturas con mejoras Fase 2")
-    
-    # 2. Configurar sistema de caché
-    setup_cache(default_ttl=300, max_memory_mb=200)
-    app_logger.info("✅ Sistema de caché configurado")
-    
-    # 3. Verificar configuración crítica
-    missing_config = []
-    if not PROJECT_ID:
-        missing_config.append("DOCAI_PROJECT_ID")
-    if not LOCATION:
-        missing_config.append("DOCAI_LOCATION")
-    if not PROCESSOR_ID:
-        missing_config.append("DOCAI_PROCESSOR_ID")
-    
-    if missing_config:
-        error_msg = f"Variables de entorno faltantes: {', '.join(missing_config)}"
-        security_logger.critical(error_msg)
-        app_logger.critical(error_msg)
-    else:
-        app_logger.info("✅ Configuración de Document AI verificada")
-    
-    # 4. Inicializar base de datos
-    try:
-        with TimingContext("database_initialization"):
-            init_db_tables()
-            
-            db = sqlite3.connect("database.db")
-            init_auth_tables(db)
-            db.close()
-            
-        app_logger.info("✅ Base de datos inicializada correctamente")
-        
-    except Exception as e:
-        app_logger.error(f"❌ Error inicializando base de datos: {e}")
-        raise DatabaseError(
-            "Error en inicialización de base de datos",
-            context={"original_error": str(e)}
-        )
-    
-    # 5. Log de configuración de seguridad
-    security_logger.info("Sistema de seguridad inicializado", extra={
-        "security_features": [
-            "JWT Authentication",
-            "RBAC Authorization", 
-            "Request logging",
-            "File validation",
-            "SQL injection protection",
-            "Structured logging",
-            "Intelligent caching"
-        ]
-    })
-    
-    app_logger.info("🎉 Sistema iniciado exitosamente")
+def startup():
     """Configuración mejorada de inicio con sistemas unificados"""
     
     # 1. Configurar sistema de logging
@@ -1216,7 +1151,6 @@ def obtener_estadisticas_facturas(db: sqlite3.Connection) -> Dict:
             "facturas_por_mes": []
         }
     
-
 @app.middleware("http")
 async def enhanced_security_middleware(request: Request, call_next):
     """Middleware mejorado con logging estructurado y manejo de errores"""
@@ -1227,6 +1161,7 @@ async def enhanced_security_middleware(request: Request, call_next):
     
     # Extraer información del request
     client_ip = request.client.host if request.client else "unknown"
+    user_agent = request.headers.get("user-agent", "unknown")
     method = request.method
     path = request.url.path
     
@@ -1238,23 +1173,8 @@ async def enhanced_security_middleware(request: Request, call_next):
         app_logger = get_logger("api")
         app_logger.info(f"Request iniciado: {method} {path}")
         
-        # Validaciones de seguridad básicas
-        content_length = request.headers.get("content-length")
-        if content_length:
-            size_mb = int(content_length) / 1024 / 1024
-            
-            # Límite general de 100MB
-            if size_mb > 100:
-                log_security_event(
-                    "oversized_request_blocked",
-                    {"size_mb": size_mb, "limit_mb": 100},
-                    severity="warning",
-                    ip_address=client_ip
-                )
-                raise ValidationError(
-                    "Request demasiado grande",
-                    context={"size_mb": size_mb, "limit_mb": 100}
-                )
+        # Validaciones de seguridad
+        await _validate_request_security(request, client_ip)
         
         # Procesar request
         response = await call_next(request)

@@ -118,17 +118,16 @@ class AgenteFacturas:
 
     def _ejecutar_consulta_sql(self, sql_query: str) -> List[Dict]:
         """
-        Ejecuta la consulta SQL de forma segura - VERSIÓN MEJORADA
+        Ejecuta la consulta SQL de forma segura
         """
         try:
             # Validaciones de seguridad mejoradas
             sql_upper = sql_query.upper().strip()
             
-            # Lista ampliada de operaciones prohibidas
+            # Lista de operaciones prohibidas
             operaciones_prohibidas = [
                 'DROP', 'DELETE', 'UPDATE', 'INSERT', 'ALTER', 
-                'CREATE', 'TRUNCATE', 'REPLACE', 'EXEC', 'EXECUTE',
-                'CALL', 'PRAGMA', 'ATTACH', 'DETACH'
+                'CREATE', 'TRUNCATE', 'REPLACE', 'EXEC', 'EXECUTE'
             ]
             
             # Verificar que sea una consulta SELECT
@@ -143,24 +142,14 @@ class AgenteFacturas:
                     raise ValueError(f"Operación no permitida: {operacion}")
             
             # Verificar que no contenga múltiples statements
-            if ';' in sql_query.rstrip(';'):
+            if ';' in sql_query and sql_query.rstrip().rstrip(';').count(';') > 0:
                 raise ValueError("No se permiten múltiples declaraciones SQL")
 
-            # Limitar complejidad de consulta
-            if len(sql_query) > 1000:
-                raise ValueError("Consulta demasiado compleja")
-
             cursor = self.db.cursor()
-            
-            # Configurar timeout de consulta
-            cursor.execute("PRAGMA query_timeout = 30000")  # 30 segundos
             cursor.execute(sql_query)
 
-            # Limitar número de resultados para evitar sobrecarga
-            resultados_raw = cursor.fetchmany(100)  # Máximo 100 resultados
-            
             resultados = []
-            for row in resultados_raw:
+            for row in cursor.fetchall():
                 # Convertir sqlite3.Row a diccionario
                 resultado = dict(row)
 
@@ -188,9 +177,6 @@ class AgenteFacturas:
 
             return resultados
 
-        except sqlite3.Error as e:
-            logger.error(f"Error SQL ejecutando consulta: {e}")
-            raise ValueError(f"Error en consulta SQL: {str(e)}")
         except Exception as e:
             logger.error(f"Error ejecutando SQL: {e}")
             raise
@@ -207,6 +193,9 @@ class AgenteFacturas:
             total_facturas = len(resultados)
             
             # Calcular suma total solo si hay columna 'total'
+            
+
+            # Por esta versión corregida:
             suma_total = 0
             for r in resultados:
                 if r.get('total'):
@@ -365,77 +354,92 @@ class AgenteFacturas:
 
     def obtener_estadisticas_inteligentes(self) -> Dict:
         """
-        Genera estadísticas inteligentes sobre las facturas - VERSIÓN CONSOLIDADA Y OPTIMIZADA
+        Genera estadísticas inteligentes sobre las facturas
         """
         try:
             cursor = self.db.cursor()
 
-            # Estadísticas básicas con consultas optimizadas
-            stats = {}
-
-            # Total facturas
+            # Estadísticas básicas
             cursor.execute("SELECT COUNT(*) as total FROM facturas")
-            stats['total_facturas'] = cursor.fetchone()[0]
+            total_facturas = cursor.fetchone()[0]
 
-            # Suma total con manejo de NULL
-            cursor.execute("""
-                SELECT COALESCE(SUM(total), 0) as suma_total 
-                FROM facturas 
-                WHERE total IS NOT NULL
-            """)
-            suma_total = cursor.fetchone()[0]
-            stats['suma_total'] = suma_total
-            stats['suma_total_formateada'] = f"${suma_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            cursor.execute("SELECT SUM(total) as suma_total FROM facturas WHERE total IS NOT NULL")
+            suma_total = cursor.fetchone()[0] or 0
 
-            # Top 5 proveedores optimizado
+            # Top 5 proveedores
             cursor.execute("""
-                SELECT 
-                    razon_social, 
-                    COUNT(*) as cantidad, 
-                    COALESCE(SUM(total), 0) as total_proveedor
+                SELECT razon_social, COUNT(*) as cantidad, SUM(total) as total_proveedor
                 FROM facturas 
-                WHERE razon_social IS NOT NULL AND razon_social != ''
+                WHERE razon_social IS NOT NULL
                 GROUP BY razon_social
                 ORDER BY total_proveedor DESC
                 LIMIT 5
             """)
-            stats['top_proveedores'] = []
-            for row in cursor.fetchall():
-                stats['top_proveedores'].append({
-                    'razon_social': row[0],
-                    'cantidad': row[1],
-                    'total_proveedor': row[2]
-                })
+            top_proveedores = [dict(row) for row in cursor.fetchall()]
 
-            # Facturas por mes últimos 12 meses
+            # Facturas por mes
             cursor.execute("""
-                SELECT 
-                    strftime('%Y-%m', created_at) as mes,
-                    COUNT(*) as cantidad,
-                    COALESCE(SUM(total), 0) as total_mes
+                SELECT strftime('%Y-%m', created_at) as mes, COUNT(*) as cantidad
                 FROM facturas
-                WHERE created_at >= date('now', '-12 months')
-                GROUP BY strftime('%Y-%m', created_at)
+                GROUP BY mes
                 ORDER BY mes DESC
                 LIMIT 12
             """)
-            stats['facturas_por_mes'] = []
-            for row in cursor.fetchall():
-                stats['facturas_por_mes'].append({
-                    'mes': row[0],
-                    'cantidad': row[1],
-                    'total_mes': row[2]
-                })
+            por_mes = [dict(row) for row in cursor.fetchall()]
 
-            logger.info(f"Estadísticas generadas: {stats['total_facturas']} facturas, {len(stats['top_proveedores'])} proveedores")
-            return stats
+            return {
+                "total_facturas": total_facturas,
+                "suma_total": suma_total,
+                "suma_total_formateada": f"${suma_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+                "top_proveedores": top_proveedores,
+                "facturas_por_mes": por_mes
+            }
 
         except Exception as e:
             logger.error(f"Error obteniendo estadísticas: {e}")
+            return {}        
+        """
+        Genera estadísticas inteligentes sobre las facturas
+        """
+        try:
+            cursor = self.db.cursor()
+
+            # Estadísticas básicas
+            cursor.execute("SELECT COUNT(*) as total FROM facturas")
+            total_facturas = cursor.fetchone()[0]
+
+            cursor.execute("SELECT SUM(total) as suma_total FROM facturas WHERE total IS NOT NULL")
+            suma_total = cursor.fetchone()[0] or 0
+
+            # Top 5 proveedores
+            cursor.execute("""
+                SELECT razon_social, COUNT(*) as cantidad, SUM(total) as total_proveedor
+                FROM facturas 
+                WHERE razon_social IS NOT NULL
+                GROUP BY razon_social
+                ORDER BY total_proveedor DESC
+                LIMIT 5
+            """)
+            top_proveedores = [dict(row) for row in cursor.fetchall()]
+
+            # Facturas por mes
+            cursor.execute("""
+                SELECT strftime('%Y-%m', created_at) as mes, COUNT(*) as cantidad
+                FROM facturas
+                GROUP BY mes
+                ORDER BY mes DESC
+                LIMIT 12
+            """)
+            por_mes = [dict(row) for row in cursor.fetchall()]
+
             return {
-                'total_facturas': 0,
-                'suma_total': 0,
-                'suma_total_formateada': '$0,00',
-                'top_proveedores': [],
-                'facturas_por_mes': []
+                "total_facturas": total_facturas,
+                "suma_total": suma_total,
+                "suma_total_formateada": f"${suma_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+                "top_proveedores": top_proveedores,
+                "facturas_por_mes": por_mes
             }
+
+        except Exception as e:
+            logger.error(f"Error obteniendo estadísticas: {e}")
+            return {}

@@ -1,0 +1,3 @@
+{"timestamp": "2025-07-18T14:22:40.285282Z", "level": "INFO", "logger": "facturas.security", "message": "Sistema de seguridad inicializado", "module": "app", "function": "startup_enhanced", "line": 322, "thread": 139147277258880, "process": 30618}
+{"timestamp": "2025-07-18T14:22:40.286831Z", "level": "INFO", "logger": "facturas.security", "message": "Sistema de seguridad inicializado", "module": "app", "function": "startup_enhanced", "line": 391, "thread": 139147277258880, "process": 30618}
+{"timestamp": "2025-07-18T14:22:40.286869Z", "level": "INFO", "logger": "facturas.security", "message": "Sistema de seguridad inicializado", "module": "app", "function": "startup_enhanced", "line": 391, "thread": 139147277258880, "process": 30618}

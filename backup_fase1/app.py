@@ -7,9 +7,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 
 from google.cloud import documentai_v1 as documentai
-import tempfile
 import os
-from pathlib import Path
 import tempfile
 import sqlite3
 from typing import List, Dict
@@ -20,33 +18,11 @@ from datetime import datetime, timedelta
 from app_modules.core.config import settings, setup_google_credentials
 from app_modules.core.database import get_db, init_database
 from app_modules.utils.formatters import formatear_moneda
-import uuid
-import time
-from contextlib import asynccontextmanager
 
-# Nuevos sistemas de Fase 2
-from app_modules.core.logging_config import (
-    setup_logging, get_logger, get_security_logger, get_audit_logger,
-    log_security_event, log_api_request, TimingContext, 
-    set_request_context, clear_request_context
-)
-
-from app_modules.core.error_handling import (
-    ErrorCode, ErrorHandler, FacturasException, ValidationError, DatabaseError,
-    FileProcessingError, DocumentAIError, DataValidator, handle_errors
-)
-
-from app_modules.utils.date_utils import DateFormatter, FechaFactura
-
-from app_modules.core.cache_system import (
-    setup_cache, get_cache, cached, FacturasCacheManager
-)
-
+# Asegúrate que la importación coincida con la ubicación de tu archivo
 from parser_factura import guardar_factura_en_db
 
-from app_modules.utils.file_validator import PDFValidator, FileUploadValidator
-
-from app_modules.utils.cuit_utils import formatear_cuit, validar_cuit_completo
+from app_modules.utils.cuit_utils import limpiar_cuit, formatear_cuit, validar_cuit
 
 from auth_routes import auth_router, require_auth_cookie, get_current_user_from_cookie
 from auth import init_auth_tables, can_access_factura
@@ -56,6 +32,7 @@ from helpers.iniciar_base import init_db_tables
 
 from agente_facturas import AgenteFacturas
 
+# Configurar logging con nivel WARNING para reducir ruido
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
@@ -149,14 +126,8 @@ def reconstruir_line_items(data):
 # Helper para formatear moneda
 # DESPUÉS:
 def _formatear_moneda(valor) -> str:
-    from app_modules.utils.formatters import formatear_moneda    
-    if valor is None:
-        return "$0,00"    
-    try:
-        return formatear_moneda(valor)
-    except Exception as e:
-        logger.warning(f"Error formateando moneda '{valor}': {e}")
-        return str(valor) if valor else "$0,00"
+    """Usar el nuevo formateador"""
+    return formatear_moneda(valor)
 
 def _formatear_fecha(fecha_str) -> str:
     """Formatea una fecha para mostrar en la interfaz."""
@@ -270,267 +241,47 @@ def get_db():
         db.close()
 
 @app.on_event("startup")
-def startup_enhanced():
-    """Configuración mejorada de inicio con sistemas unificados"""
-    
-    # 1. Configurar sistema de logging
-    setup_logging()
-    app_logger = get_logger("startup")
-    security_logger = get_security_logger()
-    
-    app_logger.info("🚀 Iniciando sistema de facturas con mejoras Fase 2")
-    
-    # 2. Configurar sistema de caché
-    setup_cache(default_ttl=300, max_memory_mb=200)
-    app_logger.info("✅ Sistema de caché configurado")
-    
-    # 3. Verificar configuración crítica
-    missing_config = []
-    if not PROJECT_ID:
-        missing_config.append("DOCAI_PROJECT_ID")
-    if not LOCATION:
-        missing_config.append("DOCAI_LOCATION")
-    if not PROCESSOR_ID:
-        missing_config.append("DOCAI_PROCESSOR_ID")
-    
-    if missing_config:
-        error_msg = f"Variables de entorno faltantes: {', '.join(missing_config)}"
-        security_logger.critical(error_msg)
-        app_logger.critical(error_msg)
-    else:
-        app_logger.info("✅ Configuración de Document AI verificada")
-    
-    # 4. Inicializar base de datos
-    try:
-        with TimingContext("database_initialization"):
-            init_db_tables()
-            
-            db = sqlite3.connect("database.db")
-            init_auth_tables(db)
-            db.close()
-            
-        app_logger.info("✅ Base de datos inicializada correctamente")
-        
-    except Exception as e:
-        app_logger.error(f"❌ Error inicializando base de datos: {e}")
-        raise DatabaseError(
-            "Error en inicialización de base de datos",
-            context={"original_error": str(e)}
-        )
-    
-    # 5. Log de configuración de seguridad
-    security_logger.info("Sistema de seguridad inicializado", extra={
-        "security_features": [
-            "JWT Authentication",
-            "RBAC Authorization", 
-            "Request logging",
-            "File validation",
-            "SQL injection protection",
-            "Structured logging",
-            "Intelligent caching"
-        ]
-    })
-    
-    app_logger.info("🎉 Sistema iniciado exitosamente")
-    """Configuración mejorada de inicio con sistemas unificados"""
-    
-    # 1. Configurar sistema de logging
-    setup_logging()
-    app_logger = get_logger("startup")
-    security_logger = get_security_logger()
-    
-    app_logger.info("🚀 Iniciando sistema de facturas con mejoras Fase 2")
-    
-    # 2. Verificar configuración crítica
-    missing_config = []
-    if not PROJECT_ID:
-        missing_config.append("DOCAI_PROJECT_ID")
-    if not LOCATION:
-        missing_config.append("DOCAI_LOCATION")
-    if not PROCESSOR_ID:
-        missing_config.append("DOCAI_PROCESSOR_ID")
-    
-    if missing_config:
-        error_msg = f"Variables de entorno faltantes: {', '.join(missing_config)}"
-        security_logger.critical(error_msg)
-        raise FacturasException(
-            ErrorCode.CONFIGURATION_ERROR,
-            error_msg,
-            context={"missing_vars": missing_config}
-        )
-    
-    # 3. Inicializar base de datos
-    try:
-        with TimingContext("database_initialization"):
-            init_db_tables()
-            
-            db = sqlite3.connect("database.db")
-            init_auth_tables(db)
-            db.close()
-            
-        app_logger.info("✅ Base de datos inicializada correctamente")
-        
-    except Exception as e:
-        app_logger.error(f"❌ Error inicializando base de datos: {e}")
-        raise DatabaseError(
-            "Error en inicialización de base de datos",
-            context={"original_error": str(e)}
-        )
-    
-    # 4. Verificar servicios externos
-    try:
-        # Test básico de Document AI
-        test_processor_name = client.processor_path(PROJECT_ID, LOCATION, PROCESSOR_ID)
-        app_logger.info(f"✅ Document AI configurado: {test_processor_name}")
-        
-    except Exception as e:
-        app_logger.error(f"⚠️ Error verificando Document AI: {e}")
-        # No es crítico, pero importante logearlo
-    
-    # 5. Log de configuración de seguridad
-    security_logger.info("Sistema de seguridad inicializado", extra={
-        "security_features": [
-            "JWT Authentication",
-            "RBAC Authorization", 
-            "Request logging",
-            "File validation",
-            "SQL injection protection"
-        ]
-    })
-    
-    app_logger.info("🎉 Sistema iniciado exitosamente")
-
-    """Configurar logging de seguridad al iniciar"""
-    
-    # Crear directorio de logs si no existe
-    log_dir = Path("logs")
-    log_dir.mkdir(exist_ok=True)
-    
-    # Configurar logger de seguridad específico
-    security_logger = logging.getLogger("security")
-    security_handler = logging.FileHandler("logs/security.log")
-    security_handler.setFormatter(
-        logging.Formatter(
-            '%(asctime)s - SECURITY - %(levelname)s - %(message)s'
-        )
-    )
-    security_logger.addHandler(security_handler)
-    security_logger.setLevel(logging.INFO)
-    
-    logger.info("Sistema de seguridad inicializado")
-    
-    # Verificar configuración crítica
+def startup():
     if not all([PROJECT_ID, LOCATION, PROCESSOR_ID]):
-        security_logger.critical("Variables de entorno críticas faltantes para Document AI")
-        
-    # Log de inicio seguro
-    security_logger.info("Aplicación iniciada con medidas de seguridad activas")
-
+        logger.critical("Faltan variables de entorno críticas para Document AI.")
+    
+    # Inicializar tablas existentes
+    init_db_tables()
+    
+    # Inicializar tablas de autenticación
+    db = sqlite3.connect("database.db")
+    init_auth_tables(db)
+    db.close()
 
 # === INCLUIR EL ROUTER DE AUTENTICACIÓN ===
 app.include_router(auth_router)
 
-def process_pdf_secure(file_path: str) -> Dict:
-    """
-    Versión segura del procesamiento de PDF con validación completa
-    """
+def process_pdf(file_path: str) -> Dict:
     try:
-        # 1. VALIDACIÓN EXHAUSTIVA DEL ARCHIVO
-        validation_result = PDFValidator.validar_archivo_completo(file_path)
-        
-        if not validation_result['es_valido']:
-            error_msg = '; '.join(validation_result['errores'])
-            logger.error(f"Archivo PDF inválido: {error_msg}")
-            return {
-                "text": "",
-                "entities": {},
-                "entities_raw": {},
-                "pages_processed": 0,
-                "validation_errors": validation_result['errores'],
-                "validation_warnings": validation_result.get('warnings', [])
-            }
-        
-        # 2. LOG DE VALIDACIÓN EXITOSA
-        resumen = PDFValidator.obtener_resumen_validacion(validation_result)
-        logger.info(f"Archivo validado: {resumen}")
-        
-        # 3. PROCESAMIENTO CON DOCUMENT AI (existente pero con mejor manejo de errores)
         with open(file_path, "rb") as f:
             file_content = f.read()
-            
-            # Configurar opciones de procesamiento más seguras
             selector = documentai.ProcessOptions.IndividualPageSelector(pages=[1])
-            options = documentai.ProcessOptions(
-                individual_page_selector=selector,
-                # Agregar límites de procesamiento
-                ocr_config=documentai.OcrConfig(
-                    enable_native_pdf_parsing=True,
-                    premium_features=documentai.OcrConfig.PremiumFeatures(
-                        enable_math_ocr=False,  # Desactivar features no necesarias
-                        enable_selection_mark_detection=False
-                    )
-                )
-            )
-            
+            options = documentai.ProcessOptions(individual_page_selector=selector)
             request = documentai.ProcessRequest(
-                name=client.processor_path(PROJECT_ID, LOCATION, PROCESSOR_ID),
-                raw_document=documentai.RawDocument(
-                    content=file_content, 
-                    mime_type="application/pdf"
-                ),
+                name=client.processor_path(PROJECT_ID, LOCATION, PROCESSOR_ID), # type: ignore
+                raw_document=documentai.RawDocument(content=file_content, mime_type="application/pdf"),
                 field_mask="text,entities,pages.layout",
                 process_options=options
             )
-            
-            # Ejecutar con timeout y manejo de errores mejorado
-            try:
-                result = client.process_document(request=request)
-                doc = result.document
-                
-                # Validar respuesta de Document AI
-                if not doc:
-                    raise Exception("Document AI no devolvió resultados")
-                
-                entities_raw = {e.type_: e.mention_text for e in doc.entities}
-                
-                # 4. VALIDACIÓN DE DATOS EXTRAÍDOS
-                entities_mapped = mapear_entidades_flexibles(entities_raw)
-                
-                # Validar CUIT si fue extraído
-                if entities_mapped.get('supplier_tax_id'):
-                    cuit = entities_mapped['supplier_tax_id']
-                    if not validar_cuit_completo(cuit):
-                        logger.warning(f"CUIT extraído '{cuit}' no es válido")
-                        entities_mapped['supplier_tax_id_warning'] = 'CUIT no válido'
-                
-                return {
-                    "text": doc.text,
-                    "entities": entities_mapped,
-                    "entities_raw": entities_raw,
-                    "pages_processed": len(doc.pages) if doc.pages else 0,
-                    "validation_metadata": validation_result['metadata']
-                }
-                
-            except Exception as doc_ai_error:
-                logger.error(f"Error en Document AI: {doc_ai_error}")
-                return {
-                    "text": "",
-                    "entities": {},
-                    "entities_raw": {},
-                    "pages_processed": 0,
-                    "document_ai_error": str(doc_ai_error)
-                }
-                
+            result = client.process_document(request=request)
+            doc = result.document
+            entities_raw = {e.type_: e.mention_text for e in doc.entities}
+            return {
+                "text": doc.text,
+                "entities": mapear_entidades_flexibles(entities_raw),
+                "entities_raw": entities_raw,
+                "pages_processed": len(doc.pages) if doc.pages else 0
+            }
     except Exception as e:
         logger.error(f"Error procesando PDF: {e}")
-        return {
-            "text": "",
-            "entities": {},
-            "entities_raw": {},
-            "pages_processed": 0,
-            "processing_error": str(e)
-        }
+        return {"text": "", "entities": {}, "entities_raw": {}, "pages_processed": 0}
 
+# En app.py, reemplazar la función home:
 @app.get("/", response_class=HTMLResponse)
 async def home(
     request: Request, 
@@ -649,14 +400,12 @@ async def ver_factura(
         })
     
 @app.post("/extract-text")
-async def extract_text_from_pdfs_secure(
+async def extract_text_from_pdfs(
     files: List[UploadFile] = File(...), 
     db: sqlite3.Connection = Depends(get_db),
     current_user_data = Depends(require_auth_cookie)
 ):
-    """
-    Procesamiento seguro de PDFs con validación exhaustiva
-    """
+    """Procesar PDFs (requiere permisos de creación)"""
     current_user, token_data = current_user_data
     
     # Verificar permisos
@@ -666,141 +415,35 @@ async def extract_text_from_pdfs_secure(
             detail="No tienes permisos para crear facturas"
         )
     
-    # Límites de seguridad
-    MAX_FILES = 10
-    if len(files) > MAX_FILES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Máximo {MAX_FILES} archivos por vez"
-        )
-    
     resultados = []
-    archivos_procesados = 0
-    
     for file in files:
-        temp_path = None
         try:
-            # 1. VALIDACIÓN PREVIA DEL UPLOAD
-            upload_validation = FileUploadValidator.validar_upload(
-                file, file.filename
-            )
-            
-            if not upload_validation['es_valido']:
-                error_msg = '; '.join(upload_validation['errores'])
-                resultados.append({
-                    "filename": file.filename,
-                    "error": f"Upload inválido: {error_msg}",
-                    "validation_warnings": upload_validation.get('warnings', [])
-                })
-                continue
-            
-            # 2. GUARDAR ARCHIVO TEMPORALMENTE CON NOMBRE SEGURO
-            safe_filename = upload_validation['metadata']['nombre_seguro']
-            
-            with tempfile.NamedTemporaryFile(
-                delete=False, 
-                suffix=".pdf",
-                prefix="factura_"
-            ) as temp_file:
-                # Leer contenido con límite de tamaño
-                content = await file.read()
-                if len(content) > PDFValidator.MAX_FILE_SIZE:
-                    raise ValueError(f"Archivo demasiado grande: {len(content)} bytes")
-                
-                temp_file.write(content)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
+                temp_file.write(await file.read())
                 temp_path = temp_file.name
-            
-            # 3. PROCESAMIENTO SEGURO
-            extracted_data = process_pdf_secure(temp_path)
-            
-            # 4. VERIFICAR ERRORES DE PROCESAMIENTO
-            if extracted_data.get("validation_errors"):
-                resultados.append({
-                    "filename": file.filename,
-                    "error": f"Validación fallida: {'; '.join(extracted_data['validation_errors'])}",
-                    "warnings": extracted_data.get('validation_warnings', [])
-                })
-                continue
-            
-            if extracted_data.get("document_ai_error"):
-                resultados.append({
-                    "filename": file.filename,
-                    "error": f"Error procesando documento: {extracted_data['document_ai_error']}",
-                    "processed_by": current_user.username
-                })
-                continue
-            
-            # 5. GUARDAR EN BASE DE DATOS SI HAY ENTIDADES
+
+            extracted_data = process_pdf(temp_path)
             entities = extracted_data.get("entities", {})
             if entities:
-                try:
-                    # Usar nombre seguro para guardar
-                    guardar_factura_en_db(db, safe_filename, entities)
-                    
-                    resultados.append({
-                        "filename": file.filename,
-                        "safe_filename": safe_filename,
-                        "message": f"Factura procesada exitosamente (página 1 de {extracted_data.get('pages_processed', 'N/A')}).",
-                        "summary_text": (extracted_data.get("text", "")[:200] + "...") if extracted_data.get("text") else "No se pudo extraer texto.",
-                        "extracted_entities": entities,
-                        "pages_processed": extracted_data.get("pages_processed", 0),
-                        "processed_by": current_user.username,
-                        "validation_metadata": extracted_data.get("validation_metadata", {})
-                    })
-                    archivos_procesados += 1
-                    
-                except Exception as db_error:
-                    logger.error(f"Error guardando en BD para {file.filename}: {db_error}")
-                    resultados.append({
-                        "filename": file.filename,
-                        "error": f"Error guardando en base de datos: {str(db_error)}",
-                        "processed_by": current_user.username
-                    })
-            else:
-                resultados.append({
-                    "filename": file.filename,
-                    "message": "Archivo procesado pero no se extrajeron datos válidos",
-                    "summary_text": extracted_data.get("text", "")[:200] if extracted_data.get("text") else "Sin texto",
-                    "processed_by": current_user.username
-                })
-                
-        except Exception as e:
-            logger.error(f"Error procesando {file.filename}: {e}")
+                guardar_factura_en_db(db, file.filename, entities)
+
             resultados.append({
                 "filename": file.filename,
-                "error": str(e),
+                "message": f"Factura procesada (página 1 de {extracted_data.get('pages_processed', 'N/A')}).",
+                "summary_text": (extracted_data.get("text", "")[:200] + "...") if extracted_data.get("text") else "No se pudo extraer texto.",
+                "extracted_entities": entities,
+                "pages_processed": extracted_data.get("pages_processed", 0),
                 "processed_by": current_user.username
             })
-            
+        except Exception as e:
+            logger.error(f"Error con {file.filename}: {e}")
+            resultados.append({"filename": file.filename, "error": str(e)})
         finally:
-            # 6. LIMPIEZA SEGURA DE ARCHIVOS TEMPORALES
-            if temp_path and os.path.exists(temp_path):
-                try:
-                    os.remove(temp_path)
-                except OSError as e:
-                    logger.warning(f"No se pudo eliminar archivo temporal {temp_path}: {e}")
+            if 'temp_path' in locals() and os.path.exists(temp_path):
+                os.remove(temp_path)
 
-    # 7. COMMIT Y RESPUESTA
-    try:
-        db.commit()
-        
-        # Log de auditoría
-        logger.info(f"Usuario {current_user.username} procesó {archivos_procesados}/{len(files)} archivos exitosamente")
-        
-        return JSONResponse(content={
-            "resultados": resultados,
-            "total_archivos": len(files),
-            "archivos_exitosos": archivos_procesados,
-            "procesado_por": current_user.username
-        })
-        
-    except Exception as e:
-        logger.error(f"Error en commit final: {e}")
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error guardando cambios en base de datos"
-        )
+    db.commit()
+    return JSONResponse(content={"resultados": resultados})
 
 # === NUEVA RUTA PARA DASHBOARD/ESTADÍSTICAS ===
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -1216,135 +859,3 @@ def obtener_estadisticas_facturas(db: sqlite3.Connection) -> Dict:
             "facturas_por_mes": []
         }
     
-
-@app.middleware("http")
-async def enhanced_security_middleware(request: Request, call_next):
-    """Middleware mejorado con logging estructurado y manejo de errores"""
-    
-    # Generar ID único para el request
-    request_id = str(uuid.uuid4())[:8]
-    start_time = time.time()
-    
-    # Extraer información del request
-    client_ip = request.client.host if request.client else "unknown"
-    method = request.method
-    path = request.url.path
-    
-    # Establecer contexto para logging
-    set_request_context(request_id)
-    
-    try:
-        # Logs de entrada
-        app_logger = get_logger("api")
-        app_logger.info(f"Request iniciado: {method} {path}")
-        
-        # Validaciones de seguridad básicas
-        content_length = request.headers.get("content-length")
-        if content_length:
-            size_mb = int(content_length) / 1024 / 1024
-            
-            # Límite general de 100MB
-            if size_mb > 100:
-                log_security_event(
-                    "oversized_request_blocked",
-                    {"size_mb": size_mb, "limit_mb": 100},
-                    severity="warning",
-                    ip_address=client_ip
-                )
-                raise ValidationError(
-                    "Request demasiado grande",
-                    context={"size_mb": size_mb, "limit_mb": 100}
-                )
-        
-        # Procesar request
-        response = await call_next(request)
-        
-        # Calcular tiempo y loggear respuesta exitosa
-        duration_ms = (time.time() - start_time) * 1000
-        
-        log_api_request(method, path, response.status_code, duration_ms, 
-                       ip_address=client_ip)
-        
-        # Headers de seguridad
-        response.headers.update({
-            "X-Request-ID": request_id,
-            "X-Content-Type-Options": "nosniff",
-            "X-Frame-Options": "DENY",
-            "X-XSS-Protection": "1; mode=block",
-            "Referrer-Policy": "strict-origin-when-cross-origin"
-        })
-        
-        return response
-        
-    except Exception as e:
-        # Manejo centralizado de errores
-        duration_ms = (time.time() - start_time) * 1000
-        
-        error_info = ErrorHandler.handle_exception(e, request)
-        log_api_request(method, path, error_info["http_status"], duration_ms, 
-                       ip_address=client_ip)
-        
-        # Log de seguridad para errores críticos
-        if error_info["http_status"] >= 500:
-            log_security_event(
-                "critical_application_error",
-                {
-                    "path": path,
-                    "method": method,
-                    "error_code": error_info["error"]["code"],
-                    "duration_ms": duration_ms
-                },
-                severity="critical",
-                ip_address=client_ip
-            )
-        
-        response = ErrorHandler.create_http_response(error_info)
-        response.headers["X-Request-ID"] = request_id
-        return response
-        
-    finally:
-        # Limpiar contexto
-        clear_request_context()
-
-async def _validate_request_security(request: Request, client_ip: str):
-    """Validaciones de seguridad para requests"""
-    
-    # Validar tamaño de contenido
-    content_length = request.headers.get("content-length")
-    if content_length:
-        size_mb = int(content_length) / 1024 / 1024
-        
-        # Límite general de 100MB
-        if size_mb > 100:
-            log_security_event(
-                "oversized_request_blocked",
-                {"size_mb": size_mb, "limit_mb": 100},
-                severity="warning",
-                ip_address=client_ip
-            )
-            raise ValidationError(
-                "Request demasiado grande",
-                context={"size_mb": size_mb, "limit_mb": 100}
-            )
-        
-        # Límite específico para uploads
-        if "extract-text" in str(request.url) and size_mb > 50:
-            log_security_event(
-                "oversized_upload_blocked", 
-                {"size_mb": size_mb, "limit_mb": 50},
-                severity="warning",
-                ip_address=client_ip
-            )
-            raise ValidationError(
-                "Archivo demasiado grande para upload",
-                context={"size_mb": size_mb, "limit_mb": 50}
-            )
-
-
-def _formatear_cuit_seguro(cuit) -> str:
-    """Versión segura del formateador de CUIT"""
-    try:
-        return formatear_cuit(cuit)
-    except Exception as e:
-        logger.warning(f"Error formateando CUIT '{cuit}': {e}")
-        return str(cuit) if cuit else "Sin CUIT"
