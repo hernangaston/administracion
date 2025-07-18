@@ -831,3 +831,31 @@ async def reporte_top_proveedores(
             "error": str(e)
         }, status_code=500)
 
+def obtener_estadisticas_facturas(db: sqlite3.Connection) -> Dict:
+    """
+    Obtiene estadísticas usando el agente inteligente
+    """
+    try:
+        # Usar el agente inteligente existente
+        agente = AgenteFacturas(db)
+        estadisticas = agente.obtener_estadisticas_inteligentes()
+        
+        # El agente ya devuelve las estadísticas en el formato correcto
+        return estadisticas
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo estadísticas con agente: {e}")
+        # Fallback simple si falla el agente
+        cursor = db.cursor()
+        cursor.execute("SELECT COUNT(*) FROM facturas")
+        total_facturas = cursor.fetchone()[0]
+        
+        return {
+            "total_facturas": total_facturas,
+            "suma_total": 0,
+            "total_proveedores": 0,
+            "suma_total_formateada": "$0,00",
+            "top_proveedores": [],
+            "facturas_por_mes": []
+        }
+    
