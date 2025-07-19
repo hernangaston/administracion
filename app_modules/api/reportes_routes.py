@@ -1,30 +1,43 @@
 # -*- coding: utf-8 -*-
 """
-Rutas de reportes
+Rutas de reportes - Simplificado
 """
 
 import sqlite3
+import logging
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from app_modules.core.database import get_db
 from app_modules.utils.formatters import formatear_moneda
 from auth_routes import require_auth_cookie, get_current_user_from_cookie
 from agente_facturas import AgenteFacturas
 
+
 templates = Jinja2Templates(directory="templates")
 reportes_router = APIRouter()
+logger = logging.getLogger(__name__)
+
+def _formatear_moneda(valor) -> str:
+    """Helper para formatear moneda"""
+    if valor is None:
+        return "$0,00"    
+    try:
+        return formatear_moneda(valor)
+    except Exception as e:
+        logger.warning(f"Error formateando moneda '{valor}': {e}")
+        return str(valor) if valor else "$0,00"
 
 def obtener_estadisticas_facturas(db: sqlite3.Connection):
-    """Obtiene estadísticas usando el agente inteligente"""
+    """Obtiene estadísticas usando el agente inteligente - COPIADO DEL ORIGINAL"""
     try:
         agente = AgenteFacturas(db)
         estadisticas = agente.obtener_estadisticas_inteligentes()
         return estadisticas
         
     except Exception as e:
+        logger.error(f"Error obteniendo estadísticas con agente: {e}")
         # Fallback simple si falla el agente
         cursor = db.cursor()
         cursor.execute("SELECT COUNT(*) FROM facturas")
@@ -39,13 +52,13 @@ def obtener_estadisticas_facturas(db: sqlite3.Connection):
             "facturas_por_mes": []
         }
 
-@reportes_router.get("/", response_class=HTMLResponse)
+@reportes_router.get("/reportes", response_class=HTMLResponse)
 async def reportes_page(
     request: Request,
-    db: sqlite3.Connection = Depends(get_db),
+    db: sqlite3.Connection = Depends(lambda: sqlite3.connect("database.db", check_same_thread=False)),
     current_user_data = Depends(require_auth_cookie)
 ):
-    """Página de reportes (solo admin y contador)"""
+    """Página de reportes (solo admin y contador) - COPIADO DEL ORIGINAL"""
     current_user, token_data = current_user_data
     
     # Verificar permisos
@@ -58,7 +71,7 @@ async def reportes_page(
     try:
         cursor = db.cursor()
         
-        # Construir WHERE clause según permisos
+        # Construir WHERE clause según permisos - COPIADO DEL ORIGINAL
         where_conditions = []
         params = []
         
@@ -96,7 +109,7 @@ async def reportes_page(
             "total_facturas": total_facturas,
             "total_importe": total_importe,
             "total_proveedores": total_proveedores,
-            "importe_formateado": formatear_moneda(total_importe)
+            "importe_formateado": _formatear_moneda(total_importe)
         }
         
         return templates.TemplateResponse("reportes.html", {
@@ -107,6 +120,7 @@ async def reportes_page(
         })
         
     except Exception as e:
+        logger.error(f"Error en página de reportes: {e}")
         # En caso de error, devolver estadísticas vacías
         estadisticas = {
             "total_facturas": 0,
@@ -122,13 +136,15 @@ async def reportes_page(
             "permissions": token_data.permissions,
             "error": f"Error cargando estadísticas: {str(e)}"
         })
+    finally:
+        db.close()
 
 @reportes_router.get("/api/estadisticas")
 async def api_estadisticas(
     current_user_data = Depends(get_current_user_from_cookie),
-    db: sqlite3.Connection = Depends(get_db)
+    db: sqlite3.Connection = Depends(lambda: sqlite3.connect("database.db", check_same_thread=False))
 ):
-    """API para obtener estadísticas (requiere autenticación)"""
+    """API para obtener estadísticas (requiere autenticación) - COPIADO DEL ORIGINAL"""
     current_user, token_data = current_user_data
     
     if "reportes:read" not in token_data.permissions:
@@ -137,14 +153,17 @@ async def api_estadisticas(
             detail="No tienes permisos para ver reportes"
         )
     
-    return obtener_estadisticas_facturas(db)
+    try:
+        return obtener_estadisticas_facturas(db)
+    finally:
+        db.close()
 
-@reportes_router.get("/api/facturas-mes")
+@reportes_router.get("/api/reportes/facturas-mes")
 async def reporte_facturas_mes(
-    db: sqlite3.Connection = Depends(get_db),
+    db: sqlite3.Connection = Depends(lambda: sqlite3.connect("database.db", check_same_thread=False)),
     current_user_data = Depends(require_auth_cookie)
 ):
-    """Datos para reporte de facturas por mes"""
+    """Datos para reporte de facturas por mes - COPIADO DEL ORIGINAL"""
     current_user, token_data = current_user_data
     
     # Verificar permisos
@@ -201,7 +220,7 @@ async def reporte_facturas_mes(
                 "cantidad": cantidad,
                 "total_importe": float(total or 0),
                 "promedio": float(promedio or 0),
-                "total_formateado": formatear_moneda(total or 0)
+                "total_formateado": _formatear_moneda(total or 0)
             })
         
         return JSONResponse(content={
@@ -211,17 +230,20 @@ async def reporte_facturas_mes(
         })
         
     except Exception as e:
+        logger.error(f"Error en reporte facturas por mes: {e}")
         return JSONResponse(content={
             "success": False,
             "error": str(e)
         }, status_code=500)
+    finally:
+        db.close()
 
-@reportes_router.get("/api/top-proveedores")
+@reportes_router.get("/api/reportes/top-proveedores")
 async def reporte_top_proveedores(
-    db: sqlite3.Connection = Depends(get_db),
+    db: sqlite3.Connection = Depends(lambda: sqlite3.connect("database.db", check_same_thread=False)),
     current_user_data = Depends(require_auth_cookie)
 ):
-    """Top proveedores usando el agente inteligente"""
+    """Top proveedores usando el agente inteligente - COPIADO DEL ORIGINAL"""
     current_user, token_data = current_user_data
     
     # Verificar permisos
@@ -243,7 +265,7 @@ async def reporte_top_proveedores(
                 "razon_social": proveedor['razon_social'],
                 "cantidad": proveedor['cantidad'],
                 "total_proveedor": float(proveedor['total_proveedor'] or 0),
-                "total_formateado": formatear_moneda(proveedor['total_proveedor'] or 0)
+                "total_formateado": _formatear_moneda(proveedor['total_proveedor'] or 0)
             })
         
         return JSONResponse(content={
@@ -254,7 +276,10 @@ async def reporte_top_proveedores(
         })
         
     except Exception as e:
+        logger.error(f"Error en reporte top proveedores: {e}")
         return JSONResponse(content={
             "success": False,
             "error": str(e)
         }, status_code=500)
+    finally:
+        db.close()
