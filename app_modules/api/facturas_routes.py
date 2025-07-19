@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Rutas relacionadas con facturas - Simplificado
-"""
 
 import os
 import tempfile
@@ -38,7 +35,11 @@ templates = Jinja2Templates(directory="templates")
 facturas_router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# === FUNCIONES COPIADAS DEL ORIGINAL ===
+def get_db():
+    db = sqlite3.connect("database.db", check_same_thread=False)
+    db.row_factory = sqlite3.Row
+    return db
+
 
 def limpiar_cuit(cuit_raw):
     """Limpia y normaliza un CUIT extraído del PDF"""
@@ -287,7 +288,7 @@ def process_pdf(file_path: str) -> Dict:
 @facturas_router.get("/", response_class=HTMLResponse)
 async def home(
     request: Request, 
-    db: sqlite3.Connection = Depends(lambda: sqlite3.connect("database.db", check_same_thread=False)),
+    db: sqlite3.Connection = Depends(get_db),
     current_user_data = Depends(require_auth_cookie)
 ):
     """Página principal con listado de facturas (requiere autenticación)"""
@@ -348,7 +349,7 @@ async def home(
 async def ver_factura(
     request: Request, 
     factura_id: int, 
-    db: sqlite3.Connection = Depends(lambda: sqlite3.connect("database.db", check_same_thread=False)),
+    db: sqlite3.Connection = Depends(get_db),
     current_user_data = Depends(require_auth_cookie)
 ):
     """Ver detalle de una factura específica (con control de acceso)"""
@@ -401,7 +402,7 @@ async def ver_factura(
 @facturas_router.post("/extract-text")
 async def extract_text_from_pdfs_secure(
     files: List[UploadFile] = File(...), 
-    db: sqlite3.Connection = Depends(lambda: sqlite3.connect("database.db", check_same_thread=False)),
+    db: sqlite3.Connection = Depends(get_db),
     current_user_data = Depends(require_auth_cookie)
 ):
     """Procesamiento seguro de PDFs - SIMPLIFICADO"""
