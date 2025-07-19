@@ -1,4 +1,3 @@
-
 let currentChart = null;
 
 function cargarReporte(tipoReporte) {
@@ -19,7 +18,7 @@ function cargarReporte(tipoReporte) {
     if (tipoReporte === 'facturas-mes') {
         cargarFacturasPorMes();
     } else if (tipoReporte === 'top-proveedores') {
-        cargarTopProveedores(); // NUEVA FUNCIÓN
+        cargarTopProveedores();
     } else {
         // Otros reportes (placeholder por ahora)
         document.getElementById('reporte-contenido').innerHTML = `
@@ -45,9 +44,15 @@ async function cargarFacturasPorMes() {
             </div>
         `;
 
-        // Hacer petición al API
         const response = await fetch('/api/reportes/facturas-mes');
-        const resultado = await response.json();
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Error response:', errorText);
+            throw new Error(`Error ${response.status}: ${errorText.substring(0, 100)}`);
+        }
+
+        const resultado = await response.json();      
 
         if (!resultado.success) {
             throw new Error(resultado.error || 'Error cargando datos');
@@ -108,7 +113,7 @@ function crearGraficoFacturasMes(datos) {
                                 <tr>
                                     <td>${d.mes_nombre}</td>
                                     <td>${d.cantidad}</td>
-                                    <td>$${d.total_formateado}</td>
+                                    <td>${d.total_formateado}</td>
                                     <td>$${d.promedio.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                 </tr>
                             `).join('')}
@@ -196,8 +201,14 @@ async function cargarTopProveedores() {
             </div>
         `;
 
-        // Hacer petición al API
         const response = await fetch('/api/reportes/top-proveedores');
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Error response:', errorText);
+            throw new Error(`Error ${response.status}: ${errorText.substring(0, 100)}`);
+        }
+
         const resultado = await response.json();
 
         if (!resultado.success) {
@@ -214,6 +225,7 @@ async function cargarTopProveedores() {
                 <i class="fas fa-exclamation-triangle me-2"></i>
                 <strong>Error cargando el reporte</strong>
                 <p class="mb-0 mt-2">${error.message}</p>
+                <small class="d-block mt-2">URL intentada: /api/reportes/top-proveedores</small>
             </div>
         `;
     }
@@ -262,7 +274,7 @@ function crearGraficoTopProveedores(datos, descripcion) {
                                 <tr>
                                     <td><strong>${d.razon_social}</strong></td>
                                     <td>${d.cantidad}</td>
-                                    <td>$${d.total_formateado}</td>
+                                    <td>${d.total_formateado}</td>
                                     <td>$${(d.total_proveedor / d.cantidad).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                 </tr>
                             `).join('')}
