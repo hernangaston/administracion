@@ -6,6 +6,7 @@ import os
 
 class Settings(BaseSettings):
     """Configuración centralizada de la aplicación"""
+    OPENAI_API_KEY: Optional[str] = None
     
     # App
     APP_NAME: str = "Sistema de Facturas API"
